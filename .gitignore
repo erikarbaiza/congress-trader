@@ -1,0 +1,18 @@
+# Secrets
+.env
+.env.txt
+
+# Cache & data (large/ephemeral files)
+*.pkl
+trades_cache.pkl
+
+# Debug & probe scripts
+probe*.py
+debug_*.py
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/

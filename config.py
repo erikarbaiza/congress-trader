@@ -1,0 +1,38 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# ── Alpaca ────────────────────────────────────────────────────────────────────
+ALPACA_KEY    = os.environ["ALPACA_KEY"]
+ALPACA_SECRET = os.environ["ALPACA_SECRET"]
+
+# Paper trading is the default. Live trading requires explicit opt-in.
+REAL_TRADING  = os.getenv("REAL_TRADING", "false").lower() == "true"
+PAPER_TRADING = not REAL_TRADING
+
+if REAL_TRADING:
+    ALPACA_BASE_URL = "https://api.alpaca.markets"
+    print("[config] WARNING: REAL TRADING MODE — real money at risk.")
+else:
+    ALPACA_BASE_URL = "https://paper-api.alpaca.markets"
+
+# ── Email ─────────────────────────────────────────────────────────────────────
+GMAIL_USER        = os.environ["GMAIL_USER"]
+GMAIL_APP_PASSWORD = os.environ["GMAIL_APP_PASSWORD"]
+EMAIL_TO          = os.getenv("EMAIL_TO", GMAIL_USER)
+
+# ── Strategy ──────────────────────────────────────────────────────────────────
+DEPLOY_BUDGET = float(os.getenv("DEPLOY_BUDGET", "0"))
+MIN_TRADES    = int(os.getenv("MIN_TRADES", "3"))
+MAX_POSITIONS = int(os.getenv("MAX_POSITIONS", "10"))
+
+# ── Risk controls ─────────────────────────────────────────────────────────────
+MAX_POSITION_PCT = float(os.getenv("MAX_POSITION_PCT", "0.05"))   # 5% per position
+MAX_SECTOR_PCT   = float(os.getenv("MAX_SECTOR_PCT",   "0.20"))   # 20% per sector
+MIN_PRICE        = float(os.getenv("MIN_PRICE",        "5.0"))    # no penny stocks
+MIN_VOLUME       = int(os.getenv("MIN_VOLUME",         "100000")) # min avg daily volume
+STOP_LOSS_PCT    = float(os.getenv("STOP_LOSS_PCT",    "0.10"))   # 10% stop-loss
+TAKE_PROFIT_PCT  = float(os.getenv("TAKE_PROFIT_PCT",  "0.30"))   # 30% take-profit
+
+CAPITOLTRADES_BFF = "https://bff.capitoltrades.com"
