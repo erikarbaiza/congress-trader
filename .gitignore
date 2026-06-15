@@ -2,9 +2,8 @@
 .env
 .env.txt
 
-# Cache & data (large/ephemeral files)
-*.pkl
-trades_cache.pkl
+# Cache & data
+# trades_cache.pkl is intentionally tracked so Railway can use it
 
 # Debug & probe scripts
 probe*.py

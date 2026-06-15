@@ -208,7 +208,14 @@ def get_stock_trades(days_back: int = 365, full_fetch: bool = False) -> list[dic
     else:
         print("[scraper] No cache — run fetch_all.py first for full history.")
 
-    html1 = _fetch_page_html(1, days_back)
+    try:
+        html1 = _fetch_page_html(1, days_back)
+    except Exception as e:
+        if cached_trades and ("429" in str(e) or "Too Many Requests" in str(e)):
+            print(f"[scraper] Rate-limited by Capitol Trades — using cached data only.")
+            return _merge([], cached_trades, cutoff)
+        raise
+
     total_pages = _get_total_pages(html1)
     print(f"[scraper] {total_pages} pages available.")
 
