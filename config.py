@@ -17,10 +17,9 @@ if REAL_TRADING:
 else:
     ALPACA_BASE_URL = "https://paper-api.alpaca.markets"
 
-# ── Email ─────────────────────────────────────────────────────────────────────
-GMAIL_USER        = os.environ["GMAIL_USER"]
-GMAIL_APP_PASSWORD = os.environ["GMAIL_APP_PASSWORD"]
-EMAIL_TO          = os.getenv("EMAIL_TO", GMAIL_USER)
+# ── Email (Resend HTTP API — works on cloud platforms that block SMTP) ────────
+RESEND_API_KEY = os.environ["RESEND_API_KEY"]
+EMAIL_TO       = os.environ["EMAIL_TO"]
 
 # ── Strategy ──────────────────────────────────────────────────────────────────
 DEPLOY_BUDGET = float(os.getenv("DEPLOY_BUDGET", "0"))

@@ -1,14 +1,13 @@
 """
-Sends the daily summary email via Gmail SMTP using an App Password.
-Setup: myaccount.google.com/apppasswords → create a password for "Mail".
+Sends the daily summary email via the Resend HTTP API.
+Cloud platforms like Railway block outbound SMTP (port 465/587) to prevent
+spam abuse, so we send over HTTPS instead. Setup: resend.com → API Keys.
 """
 
-import smtplib
+import requests
 from datetime import datetime
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 
-from config import GMAIL_USER, GMAIL_APP_PASSWORD, EMAIL_TO
+from config import RESEND_API_KEY, EMAIL_TO
 
 
 def send_summary(
@@ -81,14 +80,22 @@ def send_summary(
     </body></html>
     """
 
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"CongressTrader Report — {top_performer['pol_name']} | {now}"
-    msg["From"] = GMAIL_USER
-    msg["To"] = EMAIL_TO
-    msg.attach(MIMEText(html, "html"))
+    subject = f"CongressTrader Report — {top_performer['pol_name']} | {now}"
 
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-        server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
-        server.sendmail(GMAIL_USER, EMAIL_TO, msg.as_string())
+    resp = requests.post(
+        "https://api.resend.com/emails",
+        headers={
+            "Authorization": f"Bearer {RESEND_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "from": "CongressTrader <onboarding@resend.dev>",
+            "to": [EMAIL_TO],
+            "subject": subject,
+            "html": html,
+        },
+        timeout=30,
+    )
+    resp.raise_for_status()
 
     print(f"[emailer] Summary sent to {EMAIL_TO}")
