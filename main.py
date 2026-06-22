@@ -50,7 +50,8 @@ def run() -> None:
             print(f"  {entry['action']:12} {entry['ticker']:8} qty={entry['qty']}  {entry['reason']}")
 
     # 5. Send email summary
-    equity = get_account_equity()
+    prev_equity = get_account_equity()  # snapshot before any pending fills settle
+    equity = prev_equity
     print(f"[trader] Account equity: ${equity:,.2f}")
     print("[emailer] Sending summary…")
     send_summary(
@@ -59,6 +60,7 @@ def run() -> None:
         target_positions=target_positions,
         trade_log=trade_log if target_positions else [],
         account_equity=equity,
+        prev_equity=equity,
     )
 
     # 6. Log daily snapshot to results.csv for tracking vs S&P 500

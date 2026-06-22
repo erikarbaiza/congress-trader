@@ -1,13 +1,12 @@
 """
 Sends the daily summary email via the Resend HTTP API.
-Cloud platforms like Railway block outbound SMTP (port 465/587) to prevent
-spam abuse, so we send over HTTPS instead. Setup: resend.com → API Keys.
+Two-section layout: simple summary on top, advanced detail below.
 """
 
 import requests
 from datetime import datetime
 
-from config import RESEND_API_KEY, EMAIL_TO
+from config import RESEND_API_KEY, EMAIL_TO, STOP_LOSS_PCT, TAKE_PROFIT_PCT
 
 
 def send_summary(
@@ -16,71 +15,180 @@ def send_summary(
     target_positions: list[dict],
     trade_log: list[dict],
     account_equity: float,
+    prev_equity: float = 100_000.0,
 ) -> None:
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    now = datetime.now()
+    date_str = now.strftime("%A %d %b %Y").capitalize()
+    time_str = now.strftime("%H:%M")
 
-    # ── build HTML ──────────────────────────────────────────────────────────
     def pct(v: float) -> str:
         return f"{v * 100:+.2f}%"
 
+    # ── daily P&L ────────────────────────────────────────────────────────────
+    daily_change = account_equity - prev_equity
+    daily_sign = "+" if daily_change >= 0 else ""
+    daily_color = "#16a34a" if daily_change >= 0 else "#dc2626"
+    equity_vs_start = account_equity - 100_000
+    equity_sign = "+" if equity_vs_start >= 0 else ""
+    equity_color = "#16a34a" if equity_vs_start >= 0 else "#dc2626"
+
+    # ── orders in plain language ──────────────────────────────────────────────
+    action_icons = {"BUY": "🟢", "SELL": "🔴", "CLOSE": "⛔", "HOLD": "➡️",
+                    "SKIP": "⏭️", "STOP_LOSS": "🛑", "TAKE_PROFIT": "💰"}
+
+    def order_label(o: dict) -> str:
+        action = o["action"]
+        icon = action_icons.get(action, "•")
+        ticker = o["ticker"]
+        qty = o.get("qty")
+        reason = o.get("reason", "")
+
+        if action == "BUY":
+            return f"{icon} COMPRADO — <strong>{ticker}</strong> ({qty} acciones) — {reason}"
+        elif action in ("SELL", "CLOSE"):
+            return f"{icon} VENDIDO — <strong>{ticker}</strong> — {reason}"
+        elif action == "HOLD":
+            return f"{icon} MANTENIDO — <strong>{ticker}</strong> sin cambios"
+        elif action == "SKIP":
+            return f"{icon} DESCARTADO — <strong>{ticker}</strong> — {reason}"
+        elif action == "STOP_LOSS":
+            return f"{icon} STOP-LOSS — <strong>{ticker}</strong> — {reason}"
+        elif action == "TAKE_PROFIT":
+            return f"{icon} TAKE-PROFIT — <strong>{ticker}</strong> — {reason}"
+        return f"{icon} {action} — <strong>{ticker}</strong> — {reason}"
+
+    orders_html = "\n".join(
+        f"<li style='margin:6px 0'>{order_label(o)}</li>"
+        for o in trade_log
+    ) or "<li style='color:#888'>Sin órdenes hoy</li>"
+
+    # ── open positions ────────────────────────────────────────────────────────
+    positions_html = "\n".join(
+        f"""<tr>
+              <td style='padding:8px 12px'><strong>{p['ticker']}</strong></td>
+              <td style='padding:8px 12px'>${p['net_dollars']:,.0f}</td>
+              <td style='padding:8px 12px;color:#888'>{p.get('sector','—')}</td>
+            </tr>"""
+        for p in target_positions
+    ) or "<tr><td colspan='3' style='padding:8px 12px;color:#888'>Sin posiciones abiertas</td></tr>"
+
+    # ── stop/take levels for open positions ──────────────────────────────────
+    risk_lines = ""
+    if target_positions:
+        risk_lines = "<p style='font-size:13px;color:#555;margin:4px 0'>"
+        risk_lines += " &nbsp;|&nbsp; ".join(
+            f"<strong>{p['ticker']}</strong>: stop-loss si cae >{STOP_LOSS_PCT:.0%} &nbsp; take-profit si sube >{TAKE_PROFIT_PCT:.0%}"
+            for p in target_positions
+        )
+        risk_lines += "</p>"
+
+    # ── ranking table ─────────────────────────────────────────────────────────
     ranking_rows = "\n".join(
-        f"<tr><td>{i+1}</td><td>{r['pol_name']}</td>"
-        f"<td><strong>{r.get('score','—')}</strong></td>"
-        f"<td>{pct(r['return'])}</td>"
-        f"<td>{r.get('win_rate',0):.0%}</td>"
-        f"<td>{r.get('sharpe',0):.2f}</td>"
-        f"<td>{r['n_trades']}</td></tr>"
+        f"""<tr style='background:{"#f0fdf4" if i == 0 else "white"}'>
+              <td style='padding:6px 10px;text-align:center'>{i+1}</td>
+              <td style='padding:6px 10px'>{"⭐ " if i == 0 else ""}{r['pol_name']}</td>
+              <td style='padding:6px 10px;text-align:center'><strong>{r.get('score','—')}</strong></td>
+              <td style='padding:6px 10px;text-align:right;color:{"#16a34a" if r["return"]>0 else "#dc2626"}'>{pct(r['return'])}</td>
+              <td style='padding:6px 10px;text-align:center'>{r.get('win_rate',0):.0%}</td>
+              <td style='padding:6px 10px;text-align:center'>{r.get('sharpe',0):.2f}</td>
+              <td style='padding:6px 10px;text-align:center'>{r['n_trades']}</td>
+            </tr>"""
         for i, r in enumerate(rankings[:10])
     )
 
-    position_rows = "\n".join(
-        f"<tr><td>{p['ticker']}</td>"
-        f"<td>${p['net_dollars']:,.0f}</td></tr>"
-        for p in target_positions
-    )
-
-    order_rows = "\n".join(
-        f"<tr><td>{o['action']}</td><td>{o['ticker']}</td>"
-        f"<td>{o['qty'] or '—'}</td><td>{o['reason']}</td></tr>"
-        for o in trade_log
-    )
-
+    top = top_performer
     html = f"""
-    <html><body style="font-family:Arial,sans-serif;color:#222">
-    <h2>CongressTrader — Daily Report {now}</h2>
-    <p><strong>Account equity:</strong> ${account_equity:,.2f}</p>
+    <html><body style="font-family:Arial,sans-serif;color:#1a1a1a;max-width:700px;margin:auto;padding:20px">
 
-    <h3>Top Performer</h3>
-    <p><strong>{top_performer['pol_name']}</strong> &nbsp;|&nbsp;
-    Score: <strong>{top_performer.get('score', '—')}/100</strong> &nbsp;|&nbsp;
-    12M return: <strong>{pct(top_performer['return'])}</strong> &nbsp;|&nbsp;
-    Win rate: {top_performer.get('win_rate', 0):.0%} &nbsp;|&nbsp;
-    Sharpe: {top_performer.get('sharpe', 0):.2f} &nbsp;|&nbsp;
-    Trades: {top_performer['n_trades']}</p>
+    <!-- HEADER -->
+    <div style="background:#0f172a;color:white;padding:20px 24px;border-radius:10px 10px 0 0">
+      <h2 style="margin:0;font-size:20px">CongressTrader</h2>
+      <p style="margin:4px 0 0;color:#94a3b8;font-size:14px">{date_str} &nbsp;·&nbsp; {time_str}</p>
+    </div>
 
-    <h3>Congress Member Rankings (top 10)</h3>
-    <table border="1" cellpadding="4" cellspacing="0">
-    <tr><th>#</th><th>Name</th><th>Score</th><th>12M Return</th><th>Win Rate</th><th>Sharpe</th><th>Trades</th></tr>
-    {ranking_rows}
-    </table>
+    <!-- SECTION 1: RESUMEN SIMPLE -->
+    <div style="background:#f8fafc;padding:20px 24px;border:1px solid #e2e8f0">
 
-    <h3>Mirrored Positions ({len(target_positions)} stocks)</h3>
-    <table border="1" cellpadding="4" cellspacing="0">
-    <tr><th>Ticker</th><th>Est. Notional</th></tr>
-    {position_rows}
-    </table>
+      <h3 style="margin:0 0 16px;font-size:16px;color:#475569;text-transform:uppercase;letter-spacing:.05em">Resumen del día</h3>
 
-    <h3>Orders Executed Today ({len(trade_log)})</h3>
-    <table border="1" cellpadding="4" cellspacing="0">
-    <tr><th>Action</th><th>Ticker</th><th>Qty</th><th>Reason</th></tr>
-    {order_rows}
-    </table>
+      <!-- Portfolio -->
+      <div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:20px">
+        <div style="background:white;border:1px solid #e2e8f0;border-radius:8px;padding:14px 20px;flex:1;min-width:140px">
+          <p style="margin:0;font-size:12px;color:#94a3b8;text-transform:uppercase">Portfolio</p>
+          <p style="margin:4px 0 0;font-size:24px;font-weight:700">${account_equity:,.2f}</p>
+          <p style="margin:4px 0 0;font-size:13px;color:{equity_color}">{equity_sign}${equity_vs_start:,.2f} desde el inicio</p>
+        </div>
+        <div style="background:white;border:1px solid #e2e8f0;border-radius:8px;padding:14px 20px;flex:1;min-width:140px">
+          <p style="margin:0;font-size:12px;color:#94a3b8;text-transform:uppercase">Cambio hoy</p>
+          <p style="margin:4px 0 0;font-size:24px;font-weight:700;color:{daily_color}">{daily_sign}${daily_change:,.2f}</p>
+          <p style="margin:4px 0 0;font-size:13px;color:#94a3b8">{daily_sign}{abs(daily_change)/prev_equity*100:.2f}%</p>
+        </div>
+        <div style="background:white;border:1px solid #e2e8f0;border-radius:8px;padding:14px 20px;flex:1;min-width:140px">
+          <p style="margin:0;font-size:12px;color:#94a3b8;text-transform:uppercase">Siguiendo a</p>
+          <p style="margin:4px 0 0;font-size:16px;font-weight:700">{top['pol_name']}</p>
+          <p style="margin:4px 0 0;font-size:13px;color:#16a34a">{pct(top['return'])} en 12 meses</p>
+        </div>
+      </div>
 
-    <p style="color:#888;font-size:12px">This is a paper-trading simulation. No real money is at risk.</p>
+      <!-- Posiciones -->
+      <h4 style="margin:0 0 8px;font-size:14px">Posiciones abiertas ({len(target_positions)})</h4>
+      <table style="width:100%;border-collapse:collapse;background:white;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:16px">
+        <tr style="background:#f1f5f9">
+          <th style="padding:8px 12px;text-align:left;font-size:12px;color:#64748b">Ticker</th>
+          <th style="padding:8px 12px;text-align:left;font-size:12px;color:#64748b">Valor est.</th>
+          <th style="padding:8px 12px;text-align:left;font-size:12px;color:#64748b">Sector</th>
+        </tr>
+        {positions_html}
+      </table>
+      {risk_lines}
+
+      <!-- Órdenes -->
+      <h4 style="margin:16px 0 8px;font-size:14px">Órdenes de hoy</h4>
+      <ul style="margin:0;padding-left:20px;font-size:14px;line-height:1.6">
+        {orders_html}
+      </ul>
+    </div>
+
+    <!-- SECTION 2: DETALLE AVANZADO -->
+    <div style="background:white;padding:20px 24px;border:1px solid #e2e8f0;border-top:none">
+
+      <h3 style="margin:0 0 4px;font-size:16px;color:#475569;text-transform:uppercase;letter-spacing:.05em">Detalle avanzado</h3>
+      <p style="margin:0 0 16px;font-size:12px;color:#94a3b8">Ranking completo · Score = 40% retorno + 30% win rate + 20% Sharpe + 10% nº trades</p>
+
+      <!-- Top performer stats -->
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px">
+        <strong>⭐ {top['pol_name']}</strong> &nbsp;·&nbsp;
+        Score: <strong>{top.get('score','—')}/100</strong> &nbsp;·&nbsp;
+        Retorno 12M: <strong style="color:#16a34a">{pct(top['return'])}</strong> &nbsp;·&nbsp;
+        Win rate: <strong>{top.get('win_rate',0):.0%}</strong> &nbsp;·&nbsp;
+        Sharpe: <strong>{top.get('sharpe',0):.2f}</strong> &nbsp;·&nbsp;
+        Trades analizados: <strong>{top['n_trades']}</strong>
+      </div>
+
+      <!-- Ranking table -->
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <tr style="background:#f1f5f9">
+          <th style="padding:6px 10px;text-align:center">#</th>
+          <th style="padding:6px 10px;text-align:left">Congresista</th>
+          <th style="padding:6px 10px;text-align:center">Score</th>
+          <th style="padding:6px 10px;text-align:right">Retorno 12M</th>
+          <th style="padding:6px 10px;text-align:center">Win Rate</th>
+          <th style="padding:6px 10px;text-align:center">Sharpe</th>
+          <th style="padding:6px 10px;text-align:center">Trades</th>
+        </tr>
+        {ranking_rows}
+      </table>
+
+      <p style="margin:20px 0 0;font-size:11px;color:#94a3b8;border-top:1px solid #f1f5f9;padding-top:12px">
+        Paper trading — dinero virtual. Ninguna cantidad real está en riesgo.
+        Stop-loss: -{STOP_LOSS_PCT:.0%} &nbsp;·&nbsp; Take-profit: +{TAKE_PROFIT_PCT:.0%} &nbsp;·&nbsp; Datos: Capitol Trades + Alpaca IEX
+      </p>
+    </div>
+
     </body></html>
     """
 
-    subject = f"CongressTrader Report — {top_performer['pol_name']} | {now}"
+    subject = f"CongressTrader {date_str} — {top['pol_name']} {pct(top['return'])} | ${account_equity:,.0f}"
 
     resp = requests.post(
         "https://api.resend.com/emails",
