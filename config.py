@@ -22,9 +22,10 @@ RESEND_API_KEY = os.environ["RESEND_API_KEY"]
 EMAIL_TO       = os.environ["EMAIL_TO"]
 
 # ── Strategy ──────────────────────────────────────────────────────────────────
-DEPLOY_BUDGET = float(os.getenv("DEPLOY_BUDGET", "0"))
-MIN_TRADES    = int(os.getenv("MIN_TRADES", "3"))
-MAX_POSITIONS = int(os.getenv("MAX_POSITIONS", "10"))
+DEPLOY_BUDGET    = float(os.getenv("DEPLOY_BUDGET", "0"))
+MIN_TRADES       = int(os.getenv("MIN_TRADES", "2"))
+MAX_POSITIONS    = int(os.getenv("MAX_POSITIONS", "10"))
+TOP_PERFORMERS   = int(os.getenv("TOP_PERFORMERS", "2"))
 
 # ── Risk controls ─────────────────────────────────────────────────────────────
 MAX_POSITION_PCT = float(os.getenv("MAX_POSITION_PCT", "0.05"))   # 5% per position

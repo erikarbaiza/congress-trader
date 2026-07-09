@@ -11,6 +11,7 @@ from analyzer import rank_politicians, get_open_positions
 from trader import mirror_positions, get_account_equity
 from emailer import send_summary
 from logger import log_daily
+from config import TOP_PERFORMERS
 
 
 def run() -> None:
@@ -33,12 +34,22 @@ def run() -> None:
         sys.exit(1)
 
     top = rankings[0]
-    print(f"[analyzer] Top performer: {top['pol_name']}  return={top['return']:.2%}  trades={top['n_trades']}")
+    leaders = rankings[:TOP_PERFORMERS]
+    names = ", ".join(r["pol_name"] for r in leaders)
+    print(f"[analyzer] Top {TOP_PERFORMERS}: {names}")
 
-    # 3. Determine their estimated open positions
+    # 3. Merge open positions from top N performers
     print("[analyzer] Resolving open positions…")
-    target_positions = get_open_positions(top["pol_id"], trades)
-    print(f"[analyzer] {len(target_positions)} open positions to mirror.")
+    merged: dict[str, dict] = {}
+    for leader in leaders:
+        for pos in get_open_positions(leader["pol_id"], trades):
+            ticker = pos["ticker"]
+            if ticker in merged:
+                merged[ticker]["net_dollars"] += pos["net_dollars"]
+            else:
+                merged[ticker] = pos.copy()
+    target_positions = sorted(merged.values(), key=lambda x: x["net_dollars"], reverse=True)
+    print(f"[analyzer] {len(target_positions)} open positions to mirror (from {TOP_PERFORMERS} politicians).")
 
     if not target_positions:
         print("[main] No open positions found — no orders will be placed.")
