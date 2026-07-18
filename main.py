@@ -70,8 +70,15 @@ def run() -> None:
         for entry in trade_log:
             print(f"  {entry['action']:12} {entry['ticker']:8} qty={entry['qty']}  {entry['reason']}")
 
-    # 6. Send email summary
-    prev_equity = equity
+    # 6. Log daily snapshot to results.csv and get metrics for email
+    metrics = log_daily(
+        top_performer=top,
+        account_equity=equity,
+        target_positions=target_positions,
+        trade_log=trade_log if target_positions else [],
+    )
+
+    # 7. Send email summary (includes daily metrics table)
     print("[emailer] Sending summary…")
     send_summary(
         top_performer=top,
@@ -80,14 +87,7 @@ def run() -> None:
         trade_log=trade_log if target_positions else [],
         account_equity=equity,
         prev_equity=equity,
-    )
-
-    # 7. Log daily snapshot to results.csv for tracking vs S&P 500
-    log_daily(
-        top_performer=top,
-        account_equity=equity,
-        target_positions=target_positions,
-        trade_log=trade_log if target_positions else [],
+        metrics=metrics,
     )
 
     print("[main] Done.")

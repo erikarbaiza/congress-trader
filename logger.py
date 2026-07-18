@@ -55,7 +55,8 @@ def log_daily(
     account_equity: float,
     target_positions: list[dict],
     trade_log: list[dict],
-) -> None:
+) -> dict:
+    """Log daily snapshot to CSV. Returns metrics dict for use in email summary."""
     spy_price = _get_spy_price()
     initial_equity, spy_baseline = _load_or_create_baseline(account_equity, spy_price)
 
@@ -88,3 +89,12 @@ def log_daily(
         writer.writerow(row)
 
     print(f"[logger] Logged — portfolio {portfolio_return:+.2%} | SPY {spy_return:+.2%} | orders={orders_executed}")
+
+    return {
+        "date":               row["date"],
+        "initial_equity":     initial_equity,
+        "portfolio_return":   portfolio_return,
+        "spy_price":          spy_price,
+        "spy_baseline":       spy_baseline,
+        "spy_return":         spy_return,
+    }

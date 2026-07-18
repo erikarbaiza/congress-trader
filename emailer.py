@@ -9,6 +9,39 @@ from datetime import datetime
 from config import RESEND_API_KEY, EMAIL_TO, STOP_LOSS_PCT, TAKE_PROFIT_PCT
 
 
+def _metrics_table(metrics: dict | None, account_equity: float) -> str:
+    if not metrics:
+        return ""
+    p_ret = metrics["portfolio_return"]
+    s_ret = metrics["spy_return"]
+    diff = p_ret - s_ret
+    p_color = "#16a34a" if p_ret >= 0 else "#dc2626"
+    s_color = "#16a34a" if s_ret >= 0 else "#dc2626"
+    d_color = "#16a34a" if diff >= 0 else "#dc2626"
+    d_label = "▲ supera al índice" if diff >= 0 else "▼ por debajo del índice"
+    start = metrics.get("initial_equity", 100_000)
+    spy_b = metrics.get("spy_baseline", 0)
+    spy_now = metrics.get("spy_price", 0)
+    return f"""
+      <div style="margin-top:20px;border-top:1px solid #e2e8f0;padding-top:16px">
+        <h4 style="margin:0 0 8px;font-size:14px">Rendimiento acumulado vs S&P 500</h4>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;background:white;border:1px solid #e2e8f0;border-radius:8px">
+          <tr style="background:#f1f5f9">
+            <th style="padding:8px 12px;text-align:left;color:#64748b">Desde el inicio</th>
+            <th style="padding:8px 12px;text-align:right;color:#64748b">Bot (${start:,.0f} → ${account_equity:,.0f})</th>
+            <th style="padding:8px 12px;text-align:right;color:#64748b">S&P 500 (SPY ${spy_b:.0f} → ${spy_now:.0f})</th>
+            <th style="padding:8px 12px;text-align:right;color:#64748b">Diferencia</th>
+          </tr>
+          <tr>
+            <td style="padding:8px 12px;color:#64748b">{metrics.get('date','')}</td>
+            <td style="padding:8px 12px;text-align:right;font-weight:700;color:{p_color}">{p_ret:+.2%}</td>
+            <td style="padding:8px 12px;text-align:right;font-weight:700;color:{s_color}">{s_ret:+.2%}</td>
+            <td style="padding:8px 12px;text-align:right;font-weight:700;color:{d_color}">{diff:+.2%} &nbsp;<span style="font-weight:400;font-size:11px">{d_label}</span></td>
+          </tr>
+        </table>
+      </div>"""
+
+
 def send_summary(
     top_performer: dict,
     rankings: list[dict],
@@ -16,6 +49,7 @@ def send_summary(
     trade_log: list[dict],
     account_equity: float,
     prev_equity: float = 100_000.0,
+    metrics: dict | None = None,
 ) -> None:
     now = datetime.now()
     date_str = now.strftime("%A %d %b %Y").capitalize()
@@ -147,6 +181,8 @@ def send_summary(
       <ul style="margin:0;padding-left:20px;font-size:14px;line-height:1.6">
         {orders_html}
       </ul>
+
+      {_metrics_table(metrics, account_equity)}
     </div>
 
     <!-- SECTION 2: DETALLE AVANZADO -->
