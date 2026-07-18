@@ -8,9 +8,11 @@ Ranks Congress members by a composite score based on:
 Final score is 0–100.
 """
 
+import json
 import math
 from datetime import datetime, timedelta, timezone, date as date_type
 from collections import defaultdict
+from pathlib import Path
 
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockBarsRequest
@@ -18,6 +20,45 @@ from alpaca.data.timeframe import TimeFrame
 from alpaca.data.enums import DataFeed
 
 from config import ALPACA_KEY, ALPACA_SECRET, MIN_TRADES, MAX_POSITIONS
+
+_SECTORS_CACHE_FILE = Path(__file__).parent / "sectors_cache.json"
+
+
+def _load_sectors_cache() -> dict[str, str]:
+    if _SECTORS_CACHE_FILE.exists():
+        try:
+            return json.loads(_SECTORS_CACHE_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return {}
+
+
+def _save_sectors_cache(cache: dict[str, str]) -> None:
+    try:
+        _SECTORS_CACHE_FILE.write_text(json.dumps(cache, indent=2, sort_keys=True), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _get_sectors(tickers: list[str]) -> dict[str, str]:
+    """Return GICS sector for each ticker, hitting yfinance only for uncached tickers."""
+    import yfinance as yf
+
+    cache = _load_sectors_cache()
+    missing = [t for t in tickers if t not in cache]
+
+    if missing:
+        print(f"[analyzer] Fetching sectors from yfinance for {len(missing)} new tickers…")
+        for sym in missing:
+            try:
+                sector = yf.Ticker(sym).info.get("sector") or "unknown"
+            except Exception:
+                sector = "unknown"
+            cache[sym] = sector
+        _save_sectors_cache(cache)
+        print(f"[analyzer] Sector cache now has {len(cache)} tickers.")
+
+    return {t: cache.get(t, "unknown") for t in tickers}
 
 _data_client = None
 
@@ -271,4 +312,13 @@ def get_open_positions(pol_id: str, trades: list[dict]) -> list[dict]:
         if amt > 0
     ]
     open_pos.sort(key=lambda x: x["net_dollars"], reverse=True)
-    return open_pos[:MAX_POSITIONS]
+    open_pos = open_pos[:MAX_POSITIONS]
+
+    # Enrich sectors from yfinance cache — Capitol Trades sector data is often null
+    live_sectors = _get_sectors([p["ticker"] for p in open_pos])
+    for p in open_pos:
+        sec = live_sectors.get(p["ticker"])
+        if sec and sec != "unknown":
+            p["sector"] = sec
+
+    return open_pos
