@@ -168,17 +168,13 @@ def mirror_positions(target: list[dict]) -> list[dict]:
                 log.append({"action": "ERROR_CLOSE", "ticker": ticker, "qty": None,
                             "reason": str(e)})
 
-    # ── 2. Build sector allocation map ────────────────────────────────────────
-    total_notional = sum(p["net_dollars"] for p in target)
-    if total_notional == 0:
+    if not target:
         return log
 
-    # Pre-calculate target value per position (before sector cap)
-    sector_alloc: dict[str, float] = defaultdict(float)
-    for pos in target:
-        weight = pos["net_dollars"] / total_notional
-        raw_value = budget * weight
-        sector_alloc[pos["sector"]] += raw_value
+    # Equal weight: each position gets 1/N of the budget.
+    # Weighting by congressional notional distorts results — one $4M trade
+    # would dominate and leave 94% of the budget idle in cash.
+    equal_weight = 1.0 / len(target)
 
     # ── 3. Place / adjust positions ───────────────────────────────────────────
     positions_open = len([t for t in target_tickers if t in current])
@@ -187,7 +183,6 @@ def mirror_positions(target: list[dict]) -> list[dict]:
     for pos in target:
         ticker = pos["ticker"]
         sector = pos["sector"]
-        weight = pos["net_dollars"] / total_notional
 
         # Hard cap: max MAX_POSITIONS open
         if ticker not in current and positions_open >= MAX_POSITIONS:
@@ -196,7 +191,7 @@ def mirror_positions(target: list[dict]) -> list[dict]:
             continue
 
         # Position size cap
-        raw_value = budget * weight
+        raw_value = budget * equal_weight
         capped_value = min(raw_value, budget * MAX_POSITION_PCT)
 
         # Sector cap

@@ -11,7 +11,7 @@ from analyzer import rank_politicians, get_open_positions
 from trader import mirror_positions, get_account_equity
 from emailer import send_summary
 from logger import log_daily
-from config import TOP_PERFORMERS
+from config import TOP_PERFORMERS, MAX_POSITION_PCT
 
 
 def run() -> None:
@@ -51,19 +51,27 @@ def run() -> None:
     target_positions = sorted(merged.values(), key=lambda x: x["net_dollars"], reverse=True)
     print(f"[analyzer] {len(target_positions)} open positions to mirror (from {TOP_PERFORMERS} politicians).")
 
+    # 4. Fetch equity and annotate each position with its estimated allocation
+    equity = get_account_equity()
+    print(f"[trader] Account equity: ${equity:,.2f}")
+
+    if target_positions:
+        equal_share = equity / len(target_positions)
+        max_pos_value = equity * MAX_POSITION_PCT
+        for pos in target_positions:
+            pos["scaled_value"] = round(min(equal_share, max_pos_value), 2)
+
     if not target_positions:
         print("[main] No open positions found — no orders will be placed.")
     else:
-        # 4. Mirror positions in the paper account
+        # 5. Mirror positions in the paper account
         print("[trader] Mirroring positions…")
         trade_log = mirror_positions(target_positions)
         for entry in trade_log:
             print(f"  {entry['action']:12} {entry['ticker']:8} qty={entry['qty']}  {entry['reason']}")
 
-    # 5. Send email summary
-    prev_equity = get_account_equity()  # snapshot before any pending fills settle
-    equity = prev_equity
-    print(f"[trader] Account equity: ${equity:,.2f}")
+    # 6. Send email summary
+    prev_equity = equity
     print("[emailer] Sending summary…")
     send_summary(
         top_performer=top,
@@ -74,7 +82,7 @@ def run() -> None:
         prev_equity=equity,
     )
 
-    # 6. Log daily snapshot to results.csv for tracking vs S&P 500
+    # 7. Log daily snapshot to results.csv for tracking vs S&P 500
     log_daily(
         top_performer=top,
         account_equity=equity,

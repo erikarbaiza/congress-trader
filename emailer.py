@@ -66,7 +66,7 @@ def send_summary(
     positions_html = "\n".join(
         f"""<tr>
               <td style='padding:8px 12px'><strong>{p['ticker']}</strong></td>
-              <td style='padding:8px 12px'>${p['net_dollars']:,.0f}</td>
+              <td style='padding:8px 12px'>${p.get('scaled_value', p['net_dollars']):,.0f}</td>
               <td style='padding:8px 12px;color:#888'>{p.get('sector','—')}</td>
             </tr>"""
         for p in target_positions
@@ -135,7 +135,7 @@ def send_summary(
       <table style="width:100%;border-collapse:collapse;background:white;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:16px">
         <tr style="background:#f1f5f9">
           <th style="padding:8px 12px;text-align:left;font-size:12px;color:#64748b">Ticker</th>
-          <th style="padding:8px 12px;text-align:left;font-size:12px;color:#64748b">Valor est.</th>
+          <th style="padding:8px 12px;text-align:left;font-size:12px;color:#64748b">Asignación</th>
           <th style="padding:8px 12px;text-align:left;font-size:12px;color:#64748b">Sector</th>
         </tr>
         {positions_html}
