@@ -226,9 +226,10 @@ def rank_politicians(trades: list[dict]) -> list[dict]:
     current_prices = _fetch_current_prices(all_tickers)
     print(f"[analyzer] Got {len(current_prices)} current prices.")
 
-    # Fetch 12 months of daily history for all tickers in bulk — avoids 5000+ individual calls
+    # Fetch 12 months of daily history for all tickers in bulk — avoids 5000+ individual calls.
+    # hist_start has an extra buffer so pub_date entries (up to 45 days after tx_date) are covered.
     hist_end = datetime.now(timezone.utc)
-    hist_start = cutoff_12m - timedelta(days=7)
+    hist_start = cutoff_12m - timedelta(days=60)
     print(f"[analyzer] Fetching 12-month price history for {len(all_tickers)} tickers...")
     hist_lookup = _fetch_historical_prices_bulk(all_tickers, hist_start, hist_end)
     print(f"[analyzer] Got {len(hist_lookup)} (ticker, date) price points.")
@@ -247,7 +248,8 @@ def rank_politicians(trades: list[dict]) -> list[dict]:
             current = current_prices.get(ticker)
             if current is None:
                 continue
-            buy_price = _lookup_close(hist_lookup, ticker, trade["tx_date"])
+            entry_date = (trade.get("pub_date") or trade["tx_date"])[:10]
+            buy_price = _lookup_close(hist_lookup, ticker, entry_date)
             if not buy_price or buy_price == 0:
                 continue
 
