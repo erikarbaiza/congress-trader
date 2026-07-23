@@ -23,7 +23,7 @@ EMAIL_TO       = os.environ["EMAIL_TO"]
 
 # ── Strategy ──────────────────────────────────────────────────────────────────
 DEPLOY_BUDGET    = float(os.getenv("DEPLOY_BUDGET", "0"))
-MIN_TRADES       = int(os.getenv("MIN_TRADES", "2"))
+MIN_TRADES       = int(os.getenv("MIN_TRADES", "5"))
 MAX_POSITIONS    = int(os.getenv("MAX_POSITIONS", "10"))
 TOP_PERFORMERS   = int(os.getenv("TOP_PERFORMERS", "2"))
 
