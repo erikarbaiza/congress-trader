@@ -7,7 +7,7 @@ import sys
 from datetime import datetime
 
 from scraper import get_stock_trades
-from analyzer import rank_politicians, get_open_positions
+from analyzer import rank_politicians, get_open_positions, compute_bh_return
 from trader import mirror_positions, get_account_equity
 from emailer import send_summary
 from logger import log_daily
@@ -55,11 +55,14 @@ def run() -> None:
     equity = get_account_equity()
     print(f"[trader] Account equity: ${equity:,.2f}")
 
+    bh_return = None
     if target_positions:
         equal_share = equity / len(target_positions)
         max_pos_value = equity * MAX_POSITION_PCT
         for pos in target_positions:
             pos["scaled_value"] = round(min(equal_share, max_pos_value), 2)
+        bh_return = compute_bh_return(target_positions)
+        print(f"[analyzer] Buy-and-hold return (no stops): {bh_return:+.2%}")
 
     if not target_positions:
         print("[main] No open positions found — no orders will be placed.")
@@ -76,6 +79,7 @@ def run() -> None:
         account_equity=equity,
         target_positions=target_positions,
         trade_log=trade_log if target_positions else [],
+        bh_return=bh_return,
     )
 
     # 7. Send email summary (includes daily metrics table)
@@ -88,6 +92,7 @@ def run() -> None:
         account_equity=equity,
         prev_equity=equity,
         metrics=metrics,
+        bh_return=bh_return,
     )
 
     print("[main] Done.")

@@ -9,35 +9,50 @@ from datetime import datetime
 from config import RESEND_API_KEY, EMAIL_TO, STOP_LOSS_PCT, TAKE_PROFIT_PCT
 
 
-def _metrics_table(metrics: dict | None, account_equity: float) -> str:
+def _metrics_table(metrics: dict | None, account_equity: float, bh_return: float | None = None) -> str:
     if not metrics:
         return ""
     p_ret = metrics["portfolio_return"]
     s_ret = metrics["spy_return"]
-    diff = p_ret - s_ret
-    p_color = "#16a34a" if p_ret >= 0 else "#dc2626"
-    s_color = "#16a34a" if s_ret >= 0 else "#dc2626"
-    d_color = "#16a34a" if diff >= 0 else "#dc2626"
-    d_label = "▲ supera al índice" if diff >= 0 else "▼ por debajo del índice"
-    start = metrics.get("initial_equity", 100_000)
-    spy_b = metrics.get("spy_baseline", 0)
+    diff  = p_ret - s_ret
+    start   = metrics.get("initial_equity", 100_000)
+    spy_b   = metrics.get("spy_baseline", 0)
     spy_now = metrics.get("spy_price", 0)
+
+    def _color(v): return "#16a34a" if v >= 0 else "#dc2626"
+    def _cell(v): return f"<td style='padding:8px 12px;text-align:right;font-weight:700;color:{_color(v)}'>{v:+.2%}</td>"
+
+    bh_row = ""
+    if bh_return is not None:
+        bh_diff = bh_return - s_ret
+        bh_row = f"""
+          <tr style="background:#fafafa">
+            <td style="padding:8px 12px;color:#64748b;font-size:12px">Buy &amp; hold sin stops</td>
+            {_cell(bh_return)}
+            <td style="padding:8px 12px"></td>
+            {_cell(bh_diff)}
+          </tr>"""
+
+    d_label = "▲ supera al índice" if diff >= 0 else "▼ por debajo del índice"
+
     return f"""
       <div style="margin-top:20px;border-top:1px solid #e2e8f0;padding-top:16px">
-        <h4 style="margin:0 0 8px;font-size:14px">Rendimiento acumulado vs S&P 500</h4>
+        <h4 style="margin:0 0 4px;font-size:14px">Rendimiento acumulado vs S&amp;P 500</h4>
+        <p style="margin:0 0 8px;font-size:11px;color:#94a3b8">Señal (bot con stops) vs señal pura (sin stops) vs índice</p>
         <table style="width:100%;border-collapse:collapse;font-size:13px;background:white;border:1px solid #e2e8f0;border-radius:8px">
           <tr style="background:#f1f5f9">
-            <th style="padding:8px 12px;text-align:left;color:#64748b">Desde el inicio</th>
-            <th style="padding:8px 12px;text-align:right;color:#64748b">Bot (${start:,.0f} → ${account_equity:,.0f})</th>
-            <th style="padding:8px 12px;text-align:right;color:#64748b">S&P 500 (SPY ${spy_b:.0f} → ${spy_now:.0f})</th>
-            <th style="padding:8px 12px;text-align:right;color:#64748b">Diferencia</th>
+            <th style="padding:8px 12px;text-align:left;color:#64748b">Estrategia</th>
+            <th style="padding:8px 12px;text-align:right;color:#64748b">Retorno acum.</th>
+            <th style="padding:8px 12px;text-align:right;color:#64748b">SPY (${spy_b:.0f}→${spy_now:.0f})</th>
+            <th style="padding:8px 12px;text-align:right;color:#64748b">vs SPY</th>
           </tr>
           <tr>
-            <td style="padding:8px 12px;color:#64748b">{metrics.get('date','')}</td>
-            <td style="padding:8px 12px;text-align:right;font-weight:700;color:{p_color}">{p_ret:+.2%}</td>
-            <td style="padding:8px 12px;text-align:right;font-weight:700;color:{s_color}">{s_ret:+.2%}</td>
-            <td style="padding:8px 12px;text-align:right;font-weight:700;color:{d_color}">{diff:+.2%} &nbsp;<span style="font-weight:400;font-size:11px">{d_label}</span></td>
+            <td style="padding:8px 12px;color:#64748b">Bot con stops (${start:,.0f}→${account_equity:,.0f})</td>
+            {_cell(p_ret)}
+            {_cell(s_ret)}
+            <td style="padding:8px 12px;text-align:right;font-weight:700;color:{_color(diff)}">{diff:+.2%} <span style="font-weight:400;font-size:11px">{d_label}</span></td>
           </tr>
+          {bh_row}
         </table>
       </div>"""
 
@@ -50,6 +65,7 @@ def send_summary(
     account_equity: float,
     prev_equity: float = 100_000.0,
     metrics: dict | None = None,
+    bh_return: float | None = None,
 ) -> None:
     now = datetime.now()
     date_str = now.strftime("%A %d %b %Y").capitalize()
@@ -182,7 +198,7 @@ def send_summary(
         {orders_html}
       </ul>
 
-      {_metrics_table(metrics, account_equity)}
+      {_metrics_table(metrics, account_equity, bh_return)}
     </div>
 
     <!-- SECTION 2: DETALLE AVANZADO -->
@@ -197,7 +213,7 @@ def send_summary(
         Score: <strong>{top.get('score','—')}/100</strong> &nbsp;·&nbsp;
         Retorno 12M: <strong style="color:#16a34a">{pct(top['return'])}</strong> &nbsp;·&nbsp;
         Win rate: <strong>{top.get('win_rate',0):.0%}</strong> &nbsp;·&nbsp;
-        Sharpe: <strong>{top.get('sharpe',0):.2f}</strong> &nbsp;·&nbsp;
+        Ret/Riesgo: <strong>{top.get('sharpe',0):.2f}</strong> &nbsp;·&nbsp;
         Trades analizados: <strong>{top['n_trades']}</strong>
       </div>
 
@@ -209,7 +225,7 @@ def send_summary(
           <th style="padding:6px 10px;text-align:center">Score</th>
           <th style="padding:6px 10px;text-align:right">Retorno 12M</th>
           <th style="padding:6px 10px;text-align:center">Win Rate</th>
-          <th style="padding:6px 10px;text-align:center">Sharpe</th>
+          <th style="padding:6px 10px;text-align:center">Ret/Riesgo</th>
           <th style="padding:6px 10px;text-align:center">Trades</th>
         </tr>
         {ranking_rows}

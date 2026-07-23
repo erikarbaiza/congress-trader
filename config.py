@@ -27,6 +27,12 @@ MIN_TRADES       = int(os.getenv("MIN_TRADES", "5"))
 MAX_POSITIONS    = int(os.getenv("MAX_POSITIONS", "10"))
 TOP_PERFORMERS   = int(os.getenv("TOP_PERFORMERS", "2"))
 
+# Score weights — must sum to 1.0. Treat as hyperparameters; optimise via backtest.
+SCORE_W_RETURN  = float(os.getenv("SCORE_W_RETURN",  "0.40"))
+SCORE_W_WINRATE = float(os.getenv("SCORE_W_WINRATE", "0.30"))
+SCORE_W_SHARPE  = float(os.getenv("SCORE_W_SHARPE",  "0.20"))
+SCORE_W_TRADES  = float(os.getenv("SCORE_W_TRADES",  "0.10"))
+
 # ── Risk controls ─────────────────────────────────────────────────────────────
 MAX_POSITION_PCT = float(os.getenv("MAX_POSITION_PCT", "0.05"))   # 5% per position
 MAX_SECTOR_PCT   = float(os.getenv("MAX_SECTOR_PCT",   "0.20"))   # 20% per sector

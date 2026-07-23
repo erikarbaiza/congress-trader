@@ -5,6 +5,7 @@ Tracks equity curve, portfolio return vs S&P 500 (SPY), and order history.
 
 import csv
 import json
+import shutil
 from datetime import datetime
 from pathlib import Path
 
@@ -19,10 +20,11 @@ CSV_HEADERS = [
     "score",
     "return_12m_pct",
     "win_rate",
-    "sharpe",
+    "trade_rr",
     "account_equity",
     "initial_equity",
     "portfolio_return_pct",
+    "bh_return_pct",
     "spy_price",
     "spy_baseline",
     "spy_return_pct",
@@ -50,13 +52,27 @@ def _load_or_create_baseline(equity: float, spy_price: float) -> tuple[float, fl
     return data["initial_equity"], data["spy_baseline"]
 
 
+def _migrate_csv_if_needed() -> None:
+    """Archive the old CSV if it was created without the current headers."""
+    if not RESULTS_FILE.exists():
+        return
+    with open(RESULTS_FILE, "r", encoding="utf-8") as f:
+        header = f.readline()
+    if "bh_return_pct" not in header:
+        dest = RESULTS_FILE.parent / "results_legacy.csv"
+        shutil.move(str(RESULTS_FILE), str(dest))
+        print(f"[logger] Migrated old CSV to {dest.name} — starting fresh with new schema.")
+
+
 def log_daily(
     top_performer: dict,
     account_equity: float,
     target_positions: list[dict],
     trade_log: list[dict],
+    bh_return: float | None = None,
 ) -> dict:
     """Log daily snapshot to CSV. Returns metrics dict for use in email summary."""
+    _migrate_csv_if_needed()
     spy_price = _get_spy_price()
     initial_equity, spy_baseline = _load_or_create_baseline(account_equity, spy_price)
 
@@ -70,7 +86,8 @@ def log_daily(
         "score":                top_performer.get("score", ""),
         "return_12m_pct":       f"{top_performer['return']:.4f}",
         "win_rate":             f"{top_performer.get('win_rate', 0):.4f}",
-        "sharpe":               f"{top_performer.get('sharpe', 0):.2f}",
+        "trade_rr":             f"{top_performer.get('sharpe', 0):.2f}",
+        "bh_return_pct":        f"{bh_return:.4f}" if bh_return is not None else "",
         "account_equity":       f"{account_equity:.2f}",
         "initial_equity":       f"{initial_equity:.2f}",
         "portfolio_return_pct": f"{portfolio_return:.4f}",

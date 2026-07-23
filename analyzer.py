@@ -19,9 +19,15 @@ from alpaca.data.requests import StockBarsRequest
 from alpaca.data.timeframe import TimeFrame
 from alpaca.data.enums import DataFeed
 
-from config import ALPACA_KEY, ALPACA_SECRET, MIN_TRADES, MAX_POSITIONS
+from config import (ALPACA_KEY, ALPACA_SECRET, MIN_TRADES, MAX_POSITIONS,
+                    SCORE_W_RETURN, SCORE_W_WINRATE, SCORE_W_SHARPE, SCORE_W_TRADES)
 
 _SECTORS_CACHE_FILE = Path(__file__).parent / "sectors_cache.json"
+
+# Module-level cache populated by rank_politicians; reused by compute_bh_return
+# to avoid redundant API calls in the same daily run.
+_cached_hist_lookup: dict = {}
+_cached_current_prices: dict = {}
 
 
 def _load_sectors_cache() -> dict[str, str]:
@@ -132,22 +138,16 @@ def _fetch_current_prices(tickers: list[str]) -> dict[str, float]:
 
 
 def _compute_score(avg_return: float, win_rate: float, sharpe: float, n_trades: int) -> float:
-    """Combine metrics into a 0–100 score."""
-    # return_score: tanh maps any return to (-1,1), then shift to (0,1)
-    return_score = (math.tanh(avg_return * 2) + 1) / 2
+    """Combine metrics into a 0–100 score. Weights are configurable via env vars."""
+    return_score = (math.tanh(avg_return * 2) + 1) / 2      # tanh → (0,1)
+    win_score    = win_rate                                    # already 0–1
+    sharpe_score = max(0.0, min(sharpe, 3.0)) / 3.0          # clamp [0,3] → (0,1)
+    trade_score  = min(n_trades / 30.0, 1.0)                 # saturates at 30 trades
 
-    win_score = win_rate  # already 0–1
-
-    # sharpe_score: clamp to [0, 3], normalize
-    sharpe_score = max(0.0, min(sharpe, 3.0)) / 3.0
-
-    # trade_count_score: saturates at 30 trades
-    trade_score = min(n_trades / 30.0, 1.0)
-
-    raw = (0.40 * return_score +
-           0.30 * win_score +
-           0.20 * sharpe_score +
-           0.10 * trade_score)
+    raw = (SCORE_W_RETURN  * return_score +
+           SCORE_W_WINRATE * win_score +
+           SCORE_W_SHARPE  * sharpe_score +
+           SCORE_W_TRADES  * trade_score)
     return round(raw * 100, 1)
 
 
@@ -287,7 +287,34 @@ def rank_politicians(trades: list[dict]) -> list[dict]:
         })
 
     rankings.sort(key=lambda x: x["score"], reverse=True)
+
+    # Cache for reuse in compute_bh_return (same daily run, no extra API calls)
+    global _cached_hist_lookup, _cached_current_prices
+    _cached_hist_lookup = hist_lookup
+    _cached_current_prices = current_prices
+
     return rankings
+
+
+def compute_bh_return(positions: list[dict]) -> float:
+    """
+    Equal-weighted buy-and-hold return for the given positions, ignoring stops.
+    Entry price = pub_date close; current price = today's close.
+    Uses the module-level cache populated by rank_politicians.
+    Returns 0.0 if no valid positions.
+    """
+    returns = []
+    for pos in positions:
+        entry_date = pos.get("entry_date")
+        if not entry_date:
+            continue
+        ticker = pos["ticker"]
+        entry_price = _lookup_close(_cached_hist_lookup, ticker, entry_date)
+        current = _cached_current_prices.get(ticker)
+        if not entry_price or not current or entry_price == 0:
+            continue
+        returns.append((current - entry_price) / entry_price)
+    return sum(returns) / len(returns) if returns else 0.0
 
 
 def get_open_positions(pol_id: str, trades: list[dict]) -> list[dict]:
@@ -297,6 +324,7 @@ def get_open_positions(pol_id: str, trades: list[dict]) -> list[dict]:
     """
     net: dict[str, float] = defaultdict(float)
     sector_map: dict[str, str] = {}
+    entry_dates: dict[str, str] = {}  # ticker → earliest pub_date of a buy
 
     for t in trades:
         if t["pol_id"] != pol_id:
@@ -305,11 +333,15 @@ def get_open_positions(pol_id: str, trades: list[dict]) -> list[dict]:
         dollars = t.get("value", 8000)
         if t["tx_type"] == "buy":
             net[t["ticker"]] += dollars
+            date = (t.get("pub_date") or t["tx_date"])[:10]
+            if t["ticker"] not in entry_dates or date < entry_dates[t["ticker"]]:
+                entry_dates[t["ticker"]] = date
         elif t["tx_type"] == "sell":
             net[t["ticker"]] -= dollars
 
     open_pos = [
-        {"ticker": tkr, "net_dollars": amt, "sector": sector_map.get(tkr, "unknown")}
+        {"ticker": tkr, "net_dollars": amt, "sector": sector_map.get(tkr, "unknown"),
+         "entry_date": entry_dates.get(tkr, "")}
         for tkr, amt in net.items()
         if amt > 0
     ]
