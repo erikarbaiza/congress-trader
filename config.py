@@ -24,8 +24,8 @@ EMAIL_TO       = os.environ["EMAIL_TO"]
 # ── Strategy ──────────────────────────────────────────────────────────────────
 DEPLOY_BUDGET    = float(os.getenv("DEPLOY_BUDGET", "0"))
 MIN_TRADES       = int(os.getenv("MIN_TRADES", "5"))
-MAX_POSITIONS    = int(os.getenv("MAX_POSITIONS", "10"))
-TOP_PERFORMERS   = int(os.getenv("TOP_PERFORMERS", "2"))
+MAX_POSITIONS    = int(os.getenv("MAX_POSITIONS", "5"))    # concentrado: top 5
+TOP_PERFORMERS   = int(os.getenv("TOP_PERFORMERS", "1"))   # apostar al #1
 
 # Score weights — must sum to 1.0. Treat as hyperparameters; optimise via backtest.
 SCORE_W_RETURN  = float(os.getenv("SCORE_W_RETURN",  "0.40"))
@@ -33,12 +33,12 @@ SCORE_W_WINRATE = float(os.getenv("SCORE_W_WINRATE", "0.30"))
 SCORE_W_SHARPE  = float(os.getenv("SCORE_W_SHARPE",  "0.20"))
 SCORE_W_TRADES  = float(os.getenv("SCORE_W_TRADES",  "0.10"))
 
-# ── Risk controls ─────────────────────────────────────────────────────────────
-MAX_POSITION_PCT = float(os.getenv("MAX_POSITION_PCT", "0.05"))   # 5% per position
-MAX_SECTOR_PCT   = float(os.getenv("MAX_SECTOR_PCT",   "0.20"))   # 20% per sector
+# ── Risk controls (YOLO MODE 🚀) ──────────────────────────────────────────────
+MAX_POSITION_PCT = float(os.getenv("MAX_POSITION_PCT", "0.20"))   # 20% por posición
+MAX_SECTOR_PCT   = float(os.getenv("MAX_SECTOR_PCT",   "1.00"))   # sin límite sector
 MIN_PRICE        = float(os.getenv("MIN_PRICE",        "5.0"))    # no penny stocks
 MIN_VOLUME       = int(os.getenv("MIN_VOLUME",         "40000"))  # min avg daily volume
-STOP_LOSS_PCT    = float(os.getenv("STOP_LOSS_PCT",    "0.10"))   # 10% stop-loss
-TAKE_PROFIT_PCT  = float(os.getenv("TAKE_PROFIT_PCT",  "0.30"))   # 30% take-profit
+STOP_LOSS_PCT    = float(os.getenv("STOP_LOSS_PCT",    "0.00"))   # sin stop-loss
+TAKE_PROFIT_PCT  = float(os.getenv("TAKE_PROFIT_PCT",  "1.00"))   # take-profit al 100% (x2)
 
 CAPITOLTRADES_BFF = "https://bff.capitoltrades.com"
