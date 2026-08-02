@@ -24,8 +24,12 @@ EMAIL_TO       = os.environ["EMAIL_TO"]
 # ── Strategy ──────────────────────────────────────────────────────────────────
 DEPLOY_BUDGET    = float(os.getenv("DEPLOY_BUDGET", "0"))
 MIN_TRADES       = int(os.getenv("MIN_TRADES", "5"))
-MAX_POSITIONS    = int(os.getenv("MAX_POSITIONS", "5"))    # concentrado: top 5
-TOP_PERFORMERS   = int(os.getenv("TOP_PERFORMERS", "1"))   # apostar al #1
+MAX_POSITIONS    = int(os.getenv("MAX_POSITIONS", "8"))
+TOP_PERFORMERS   = int(os.getenv("TOP_PERFORMERS", "1"))
+
+# ── Earnings Momentum (PEAD) ──────────────────────────────────────────────────
+HOLD_DAYS        = int(os.getenv("HOLD_DAYS",          "10"))   # calendar days to hold
+MIN_SURPRISE_PCT = float(os.getenv("MIN_SURPRISE_PCT", "0.05")) # min EPS beat (5%)
 
 # Score weights — must sum to 1.0. Treat as hyperparameters; optimise via backtest.
 SCORE_W_RETURN  = float(os.getenv("SCORE_W_RETURN",  "0.40"))

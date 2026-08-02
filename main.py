@@ -1,98 +1,91 @@
 """
-Entry point — run once at market open each weekday.
-Orchestrates: scrape → rank → identify top performer → mirror → email.
+Entry point — Post-Earnings Announcement Drift (PEAD) strategy.
+
+Each weekday at 15:35 (Spain):
+  1. Exit positions held longer than HOLD_DAYS or stopped out
+  2. Scan S&P 500 for today's earnings beats
+  3. Buy the top beats with available slots
+  4. Email summary + log
 """
 
 import sys
 from datetime import datetime
 
-from scraper import get_stock_trades
-from analyzer import rank_politicians, get_open_positions, compute_bh_return
-from trader import mirror_positions, get_account_equity
-from emailer import send_summary
-from logger import log_daily
-from config import TOP_PERFORMERS, MAX_POSITION_PCT
+from earnings_scanner import get_earnings_beats
+from position_tracker import get_stale_tickers, record_entry, remove, get_all
+from trader import (
+    get_account_equity, get_current_positions,
+    buy_earnings_position, exit_position, check_earnings_stops,
+)
+from emailer import send_earnings_summary
+from logger import log_earnings_daily
+from config import HOLD_DAYS, MAX_POSITIONS
 
 
 def run() -> None:
-    print(f"[{datetime.now():%Y-%m-%d %H:%M}] CongressTrader starting…")
+    print(f"[{datetime.now():%Y-%m-%d %H:%M}] CongressTrader — Earnings Momentum starting…")
 
-    # 1. Fetch all stock trades from the past ~13 months
-    print("[scraper] Fetching trades…")
-    trades = get_stock_trades(days_back=365)
-    print(f"[scraper] {len(trades)} stock trades fetched.")
+    equity  = get_account_equity()
+    current = get_current_positions()
+    log: list[dict] = []
 
-    if not trades:
-        print("[main] No trades found — aborting.")
-        sys.exit(1)
+    # 1. Exit positions past their HOLD_DAYS window
+    stale = get_stale_tickers(HOLD_DAYS)
+    for ticker in stale:
+        if ticker in current:
+            result = exit_position(ticker, reason=f"PEAD window closed ({HOLD_DAYS}d elapsed)")
+            log.append(result)
+            remove(ticker)
+            print(f"  EXIT {ticker} — hold period elapsed")
 
-    # 2. Rank politicians by 12-month weighted return
-    print("[analyzer] Ranking politicians…")
-    rankings = rank_politicians(trades)
-    if not rankings:
-        print("[main] Could not rank any politician — check MIN_TRADES and field names.")
-        sys.exit(1)
+    # 2. Stop-loss sweep
+    current = get_current_positions()
+    stops   = check_earnings_stops(current)
+    for entry in stops:
+        log.append(entry)
+        remove(entry["ticker"])
+        print(f"  STOP {entry['ticker']} — {entry['reason']}")
 
-    top = rankings[0]
-    leaders = rankings[:TOP_PERFORMERS]
-    names = ", ".join(r["pol_name"] for r in leaders)
-    print(f"[analyzer] Top {TOP_PERFORMERS}: {names}")
+    # 3. Count available position slots
+    current = get_current_positions()
+    slots   = MAX_POSITIONS - len(current)
+    print(f"[main] {len(current)} positions open, {slots} slots available")
 
-    # 3. Merge open positions from top N performers
-    print("[analyzer] Resolving open positions…")
-    merged: dict[str, dict] = {}
-    for leader in leaders:
-        for pos in get_open_positions(leader["pol_id"], trades):
-            ticker = pos["ticker"]
-            if ticker in merged:
-                merged[ticker]["net_dollars"] += pos["net_dollars"]
-            else:
-                merged[ticker] = pos.copy()
-    target_positions = sorted(merged.values(), key=lambda x: x["net_dollars"], reverse=True)
-    print(f"[analyzer] {len(target_positions)} open positions to mirror (from {TOP_PERFORMERS} politicians).")
+    # 4. Scan for earnings beats
+    beats = get_earnings_beats(days_back=2)
 
-    # 4. Fetch equity and annotate each position with its estimated allocation
-    equity = get_account_equity()
-    print(f"[trader] Account equity: ${equity:,.2f}")
+    # 5. Buy new beats
+    new_buys: list[dict] = []
+    for beat in beats:
+        if slots <= 0:
+            break
+        if beat["ticker"] in current:
+            continue
+        equity = get_account_equity()
+        result = buy_earnings_position(beat["ticker"], beat, equity, slots)
+        log.append(result)
+        if result["action"] == "BUY":
+            record_entry(beat["ticker"])
+            new_buys.append(beat)
+            slots -= 1
+            print(f"  BUY  {beat['ticker']:6} — EPS +{beat['surprise_pct']:.1f}%")
 
-    bh_return = None
-    if target_positions:
-        equal_share = equity / len(target_positions)
-        max_pos_value = equity * MAX_POSITION_PCT
-        for pos in target_positions:
-            pos["scaled_value"] = round(min(equal_share, max_pos_value), 2)
-        bh_return = compute_bh_return(target_positions)
-        print(f"[analyzer] Buy-and-hold return (no stops): {bh_return:+.2%}")
+    # 6. Email + log
+    equity   = get_account_equity()
+    entries  = get_all()
 
-    if not target_positions:
-        print("[main] No open positions found — no orders will be placed.")
-    else:
-        # 5. Mirror positions in the paper account
-        print("[trader] Mirroring positions…")
-        trade_log = mirror_positions(target_positions)
-        for entry in trade_log:
-            print(f"  {entry['action']:12} {entry['ticker']:8} qty={entry['qty']}  {entry['reason']}")
-
-    # 6. Log daily snapshot to results.csv and get metrics for email
-    metrics = log_daily(
-        top_performer=top,
+    send_earnings_summary(
+        beats_bought=new_buys,
+        beats_available=beats,
+        trade_log=log,
         account_equity=equity,
-        target_positions=target_positions,
-        trade_log=trade_log if target_positions else [],
-        bh_return=bh_return,
+        position_entries=entries,
     )
-
-    # 7. Send email summary (includes daily metrics table)
-    print("[emailer] Sending summary…")
-    send_summary(
-        top_performer=top,
-        rankings=rankings,
-        target_positions=target_positions,
-        trade_log=trade_log if target_positions else [],
+    log_earnings_daily(
         account_equity=equity,
-        prev_equity=equity,
-        metrics=metrics,
-        bh_return=bh_return,
+        n_positions=len(get_current_positions()),
+        trade_log=log,
+        beats_found=len(beats),
     )
 
     print("[main] Done.")

@@ -26,6 +26,64 @@ from config import (
     MIN_PRICE, MIN_VOLUME, STOP_LOSS_PCT, TAKE_PROFIT_PCT,
 )
 
+
+# ── Earnings strategy helpers ──────────────────────────────────────────────────
+
+def buy_earnings_position(ticker: str, beat: dict, equity: float, n_slots: int) -> dict:
+    """Buy a position sized as equity/n_slots, capped at MAX_POSITION_PCT."""
+    price = beat.get("price", 0)
+    if not price:
+        return {"action": "SKIP", "ticker": ticker, "qty": 0, "reason": "no price data"}
+
+    value = min(equity / max(n_slots, 1), equity * MAX_POSITION_PCT)
+    qty   = int(value / price)
+    if qty < 1:
+        return {"action": "SKIP", "ticker": ticker, "qty": 0, "reason": "position too small"}
+
+    try:
+        _get_trading_client().submit_order(MarketOrderRequest(
+            symbol=ticker, qty=qty,
+            side=OrderSide.BUY, time_in_force=TimeInForce.DAY,
+        ))
+        return {
+            "action": "BUY", "ticker": ticker, "qty": qty,
+            "reason": f"EPS beat +{beat['surprise_pct']:.1f}% (actual {beat['actual_eps']:.3f} vs est {beat['estimated_eps']:.3f})",
+        }
+    except Exception as e:
+        return {"action": "SKIP", "ticker": ticker, "qty": 0, "reason": str(e)}
+
+
+def exit_position(ticker: str, reason: str = "") -> dict:
+    """Close an entire position by ticker."""
+    try:
+        _get_trading_client().close_position(ticker)
+        return {"action": "SELL", "ticker": ticker, "qty": None, "reason": reason}
+    except Exception as e:
+        return {"action": "SKIP", "ticker": ticker, "qty": None, "reason": f"exit failed: {e}"}
+
+
+def check_earnings_stops(current: dict[str, dict]) -> list[dict]:
+    """Stop-loss sweep for earnings positions (no take-profit — let PEAD run)."""
+    results = []
+    if STOP_LOSS_PCT == 0:
+        return results
+    for ticker, pos in current.items():
+        entry = pos["avg_entry_price"]
+        price = pos["current_price"]
+        if entry == 0:
+            continue
+        change = (price - entry) / entry
+        if change <= -STOP_LOSS_PCT:
+            try:
+                _get_trading_client().close_position(ticker)
+                results.append({
+                    "action": "STOP_LOSS", "ticker": ticker, "qty": None,
+                    "reason": f"down {change:.1%} from ${entry:.2f}",
+                })
+            except Exception:
+                pass
+    return results
+
 _trading_client = None
 _data_client = None
 

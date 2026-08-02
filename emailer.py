@@ -4,9 +4,139 @@ Two-section layout: simple summary on top, advanced detail below.
 """
 
 import requests
-from datetime import datetime
+from datetime import datetime, timezone
 
-from config import RESEND_API_KEY, EMAIL_TO, STOP_LOSS_PCT, TAKE_PROFIT_PCT
+from config import RESEND_API_KEY, EMAIL_TO, STOP_LOSS_PCT, TAKE_PROFIT_PCT, HOLD_DAYS
+
+
+def send_earnings_summary(
+    beats_bought: list[dict],
+    beats_available: list[dict],
+    trade_log: list[dict],
+    account_equity: float,
+    position_entries: dict[str, str],
+) -> None:
+    now      = datetime.now()
+    date_str = now.strftime("%A %d %b %Y").capitalize()
+    time_str = now.strftime("%H:%M")
+
+    equity_vs_start = account_equity - 100_000
+    eq_sign  = "+" if equity_vs_start >= 0 else ""
+    eq_color = "#16a34a" if equity_vs_start >= 0 else "#dc2626"
+
+    action_icons = {"BUY": "🟢", "SELL": "🔴", "STOP_LOSS": "🛑", "SKIP": "⏭️"}
+
+    orders_html = "\n".join(
+        f"<li style='margin:6px 0'>{action_icons.get(o['action'], '•')} "
+        f"<strong>{o['action']}</strong> {o['ticker']} — {o.get('reason','')}</li>"
+        for o in trade_log
+    ) or "<li style='color:#888'>Sin órdenes hoy</li>"
+
+    # Open positions table
+    now_utc = datetime.now(timezone.utc)
+    pos_rows = ""
+    for ticker, entry_iso in sorted(position_entries.items()):
+        entry_dt  = datetime.fromisoformat(entry_iso)
+        days_held = (now_utc - entry_dt).days
+        days_left = max(0, HOLD_DAYS - days_held)
+        pos_rows += (
+            f"<tr><td style='padding:7px 12px'><strong>{ticker}</strong></td>"
+            f"<td style='padding:7px 12px;text-align:center'>{days_held}d</td>"
+            f"<td style='padding:7px 12px;text-align:center;color:#94a3b8'>{days_left}d</td></tr>"
+        )
+    if not pos_rows:
+        pos_rows = "<tr><td colspan='3' style='padding:7px 12px;color:#888'>Sin posiciones abiertas</td></tr>"
+
+    # Top beats found today
+    beats_rows = ""
+    for b in beats_available[:8]:
+        bought = b["ticker"] in position_entries
+        bg = "#f0fdf4" if bought else "white"
+        badge = " 🟢 comprado" if bought else ""
+        beats_rows += (
+            f"<tr style='background:{bg}'>"
+            f"<td style='padding:6px 10px'><strong>{b['ticker']}</strong>{badge}</td>"
+            f"<td style='padding:6px 10px;text-align:right;color:#16a34a;font-weight:700'>+{b['surprise_pct']:.1f}%</td>"
+            f"<td style='padding:6px 10px;text-align:right'>{b['actual_eps']:.3f}</td>"
+            f"<td style='padding:6px 10px;text-align:right;color:#94a3b8'>{b['estimated_eps']:.3f}</td>"
+            f"<td style='padding:6px 10px;color:#94a3b8'>{b.get('sector','—')}</td></tr>"
+        )
+    if not beats_rows:
+        beats_rows = "<tr><td colspan='5' style='padding:7px 12px;color:#888'>Sin earnings beats hoy</td></tr>"
+
+    subject = f"CongressTrader {date_str} — {len(beats_bought)} compras | ${account_equity:,.0f}"
+
+    html = f"""
+    <html><body style="font-family:Arial,sans-serif;color:#1a1a1a;max-width:700px;margin:auto;padding:20px">
+
+    <div style="background:#0f172a;color:white;padding:20px 24px;border-radius:10px 10px 0 0">
+      <h2 style="margin:0;font-size:20px">CongressTrader — Earnings Momentum</h2>
+      <p style="margin:4px 0 0;color:#94a3b8;font-size:14px">{date_str} · {time_str} · estrategia PEAD</p>
+    </div>
+
+    <div style="background:#f8fafc;padding:20px 24px;border:1px solid #e2e8f0">
+      <div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:20px">
+        <div style="background:white;border:1px solid #e2e8f0;border-radius:8px;padding:14px 20px;flex:1;min-width:140px">
+          <p style="margin:0;font-size:12px;color:#94a3b8;text-transform:uppercase">Portfolio</p>
+          <p style="margin:4px 0 0;font-size:24px;font-weight:700">${account_equity:,.2f}</p>
+          <p style="margin:4px 0 0;font-size:13px;color:{eq_color}">{eq_sign}${equity_vs_start:,.2f} desde el inicio</p>
+        </div>
+        <div style="background:white;border:1px solid #e2e8f0;border-radius:8px;padding:14px 20px;flex:1;min-width:140px">
+          <p style="margin:0;font-size:12px;color:#94a3b8;text-transform:uppercase">Compras hoy</p>
+          <p style="margin:4px 0 0;font-size:24px;font-weight:700">{len(beats_bought)}</p>
+          <p style="margin:4px 0 0;font-size:13px;color:#94a3b8">{len(beats_available)} beats detectados</p>
+        </div>
+        <div style="background:white;border:1px solid #e2e8f0;border-radius:8px;padding:14px 20px;flex:1;min-width:140px">
+          <p style="margin:0;font-size:12px;color:#94a3b8;text-transform:uppercase">Estrategia</p>
+          <p style="margin:4px 0 0;font-size:16px;font-weight:700">PEAD</p>
+          <p style="margin:4px 0 0;font-size:13px;color:#94a3b8">hold {HOLD_DAYS}d · stop {STOP_LOSS_PCT:.0%}</p>
+        </div>
+      </div>
+
+      <h4 style="margin:0 0 8px;font-size:14px">Órdenes de hoy</h4>
+      <ul style="margin:0 0 16px;padding-left:20px;font-size:14px;line-height:1.6">{orders_html}</ul>
+
+      <h4 style="margin:0 0 8px;font-size:14px">Posiciones abiertas ({len(position_entries)})</h4>
+      <table style="width:100%;border-collapse:collapse;background:white;border:1px solid #e2e8f0;border-radius:8px;font-size:13px">
+        <tr style="background:#f1f5f9">
+          <th style="padding:7px 12px;text-align:left;color:#64748b">Ticker</th>
+          <th style="padding:7px 12px;text-align:center;color:#64748b">Días</th>
+          <th style="padding:7px 12px;text-align:center;color:#64748b">Faltan</th>
+        </tr>
+        {pos_rows}
+      </table>
+    </div>
+
+    <div style="background:white;padding:20px 24px;border:1px solid #e2e8f0;border-top:none">
+      <h3 style="margin:0 0 4px;font-size:16px;color:#475569;text-transform:uppercase;letter-spacing:.05em">Earnings beats detectados hoy</h3>
+      <p style="margin:0 0 12px;font-size:12px;color:#94a3b8">Sorpresa EPS ≥ {STOP_LOSS_PCT:.0%} · ordenado por sorpresa</p>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <tr style="background:#f1f5f9">
+          <th style="padding:6px 10px;text-align:left;color:#64748b">Ticker</th>
+          <th style="padding:6px 10px;text-align:right;color:#64748b">Sorpresa</th>
+          <th style="padding:6px 10px;text-align:right;color:#64748b">EPS real</th>
+          <th style="padding:6px 10px;text-align:right;color:#64748b">EPS est.</th>
+          <th style="padding:6px 10px;color:#64748b">Sector</th>
+        </tr>
+        {beats_rows}
+      </table>
+      <p style="margin:16px 0 0;font-size:11px;color:#94a3b8;border-top:1px solid #f1f5f9;padding-top:12px">
+        Paper trading — dinero virtual. PEAD: compra tras EPS beat, mantiene {HOLD_DAYS} días, stop-loss {STOP_LOSS_PCT:.0%}.
+      </p>
+    </div>
+
+    </body></html>
+    """
+
+    resp = requests.post(
+        "https://api.resend.com/emails",
+        headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
+        json={"from": "CongressTrader <onboarding@resend.dev>", "to": [EMAIL_TO],
+              "subject": subject, "html": html},
+        timeout=30,
+    )
+    resp.raise_for_status()
+    print(f"[emailer] Earnings summary sent to {EMAIL_TO}")
 
 
 def _metrics_table(metrics: dict | None, account_equity: float, bh_return: float | None = None) -> str:

@@ -115,3 +115,44 @@ def log_daily(
         "spy_baseline":       spy_baseline,
         "spy_return":         spy_return,
     }
+
+
+def log_earnings_daily(
+    account_equity: float,
+    n_positions: int,
+    trade_log: list[dict],
+    beats_found: int,
+) -> None:
+    """Simplified logger for the earnings momentum strategy."""
+    spy_price = _get_spy_price()
+    initial_equity, spy_baseline = _load_or_create_baseline(account_equity, spy_price)
+
+    portfolio_return = (account_equity - initial_equity) / initial_equity if initial_equity else 0
+    spy_return       = (spy_price - spy_baseline) / spy_baseline if spy_baseline else 0
+    buys  = sum(1 for o in trade_log if o["action"] == "BUY")
+    sells = sum(1 for o in trade_log if o["action"] in ("SELL", "STOP_LOSS"))
+
+    earnings_file = RESULTS_FILE.parent / "results_earnings.csv"
+    headers = ["date", "account_equity", "portfolio_return_pct", "spy_price",
+               "spy_return_pct", "n_positions", "beats_found", "buys", "sells"]
+
+    row = {
+        "date":                 datetime.now().strftime("%Y-%m-%d"),
+        "account_equity":       f"{account_equity:.2f}",
+        "portfolio_return_pct": f"{portfolio_return:.4f}",
+        "spy_price":            f"{spy_price:.2f}",
+        "spy_return_pct":       f"{spy_return:.4f}",
+        "n_positions":          n_positions,
+        "beats_found":          beats_found,
+        "buys":                 buys,
+        "sells":                sells,
+    }
+
+    file_exists = earnings_file.exists()
+    with open(earnings_file, "a", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=headers)
+        if not file_exists:
+            writer.writeheader()
+        writer.writerow(row)
+
+    print(f"[logger] Earnings logged — portfolio {portfolio_return:+.2%} | SPY {spy_return:+.2%} | beats={beats_found} buys={buys}")
