@@ -32,8 +32,8 @@ HEADERS = {
 }
 
 
-def _fetch_page_html(page: int, days_back: int, retries: int = 4) -> str:
-    params = f"txDate={days_back}d" + (f"&page={page}" if page > 1 else "")
+def _fetch_page_html(page: int, tx_date: str, retries: int = 4) -> str:
+    params = f"txDate={tx_date}" + (f"&page={page}" if page > 1 else "")
     url = f"{BASE_URL}?{params}"
     for attempt in range(retries):
         try:
@@ -173,57 +173,62 @@ def _save_cache(trades: list[dict]) -> None:
         pickle.dump({"trades": trades, "newest_pub": newest}, f)
 
 
-def _merge(new: list[dict], cached: list[dict], cutoff: datetime) -> list[dict]:
+def _merge(new: list[dict], cached: list[dict]) -> list[dict]:
+    """Merge new trades into cached ones. Never truncates — accumulates all history."""
     seen: set = set()
     result: list[dict] = []
     for t in new + cached:
         if t["tx_id"] in seen:
             continue
         seen.add(t["tx_id"])
-        pub = t.get("pub_date", "")
-        if pub:
-            try:
-                if datetime.fromisoformat(pub.replace("Z", "+00:00")) < cutoff:
-                    continue
-            except ValueError:
-                pass
         result.append(t)
     return result
 
 
-def get_stock_trades(days_back: int = 365, full_fetch: bool = False) -> list[dict]:
+def get_stock_trades(days_back: int = 365, full_fetch: bool = False,
+                     page_delay: float = 0.8, tx_date: str | None = None) -> list[dict]:
     """
-    Fetch and parse stock trades from the last `days_back` days.
+    Fetch and parse stock trades.
 
+    tx_date: Capitol Trades filter string — "365d" (default), "all" (full history).
+             Only "365d" and "all" are known to work; other values return 0 pages.
     full_fetch=False (default, daily use):
         Stops as soon as it catches up to the newest cached trade — fast.
-    full_fetch=True (backfill via fetch_all.py):
+    full_fetch=True (historical backfill):
         Ignores cache boundary and fetches all pages — slow but resumable.
-    """
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days_back)
-    cached_trades, newest_cached = _load_cache()
+        Use page_delay=2.0 to be respectful to Capitol Trades.
 
+    Cache ALWAYS accumulates — historical data is never deleted from the pkl.
+    """
+    if tx_date is None:
+        tx_date = f"{days_back}d"
+    # No effective cutoff when fetching all history
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days_back)
+
+    cached_trades, newest_cached = _load_cache()
     if cached_trades:
         print(f"[scraper] Cache: {len(cached_trades)} trades (newest={newest_cached:%Y-%m-%d})")
     else:
-        print("[scraper] No cache — run fetch_all.py first for full history.")
+        print("[scraper] No cache — starting from scratch.")
 
     try:
-        html1 = _fetch_page_html(1, days_back)
+        html1 = _fetch_page_html(1, tx_date)
     except Exception as e:
         if cached_trades and ("429" in str(e) or "Too Many Requests" in str(e)):
             print(f"[scraper] Rate-limited by Capitol Trades — using cached data only.")
-            return _merge([], cached_trades, cutoff)
+            return _merge([], cached_trades)
         raise
 
     total_pages = _get_total_pages(html1)
-    print(f"[scraper] {total_pages} pages available.")
+    print(f"[scraper] {total_pages} pages available (txDate={tx_date}).")
+    if total_pages == 0:
+        return _merge([], cached_trades)
 
     new_trades: list[dict] = []
     seen: set = {t["tx_id"] for t in cached_trades}
 
     for page in range(1, total_pages + 1):
-        html = html1 if page == 1 else _fetch_page_html(page, days_back)
+        html = html1 if page == 1 else _fetch_page_html(page, tx_date)
         raw_trades = _extract_trades_from_html(html)
 
         if not raw_trades:
@@ -255,13 +260,13 @@ def get_stock_trades(days_back: int = 365, full_fetch: bool = False) -> list[dic
 
         if page % 20 == 0:
             # Save partial progress every 20 pages — safe to Ctrl+C and resume
-            partial = _merge(new_trades, cached_trades, cutoff)
+            partial = _merge(new_trades, cached_trades)
             _save_cache(partial)
             print(f"[scraper] Page {page}/{total_pages} — {len(partial)} trades cached.")
 
         if page < total_pages:
-            time.sleep(0.8)
+            time.sleep(page_delay)
 
-    merged = _merge(new_trades, cached_trades, cutoff)
+    merged = _merge(new_trades, cached_trades)
     _save_cache(merged)
     return merged
