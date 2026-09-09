@@ -10,6 +10,7 @@ Final score is 0–100.
 
 import json
 import math
+import pickle
 from datetime import datetime, timedelta, timezone, date as date_type
 from collections import defaultdict
 from pathlib import Path
@@ -20,9 +21,16 @@ from alpaca.data.timeframe import TimeFrame
 from alpaca.data.enums import DataFeed
 
 from config import (ALPACA_KEY, ALPACA_SECRET, MIN_TRADES, MAX_POSITIONS,
-                    SCORE_W_RETURN, SCORE_W_WINRATE, SCORE_W_SHARPE, SCORE_W_TRADES)
+                    SCORE_W_RETURN, SCORE_W_WINRATE, SCORE_W_SHARPE, SCORE_W_TRADES, RANK_BY)
 
-_SECTORS_CACHE_FILE = Path(__file__).parent / "sectors_cache.json"
+_SECTORS_CACHE_FILE  = Path(__file__).parent / "sectors_cache.json"
+_PRICES_CACHE_FILE   = Path(__file__).parent / "prices_cache.pkl"
+# Todos los scripts que llaman a _fetch_historical_prices_bulk deben producir
+# la misma cache key. Para lograrlo normalizamos el end internamente:
+# siempre extendemos hasta end + PRICES_END_BUFFER, independientemente de lo
+# que pida el caller. Esto cubre horizontes de hasta 90 días y garantiza que
+# backtest.py, backtest_lag.py y backtest_costs.py compartan el mismo cache.
+_PRICES_END_BUFFER = 90   # días adicionales más allá del end solicitado
 
 # Module-level cache populated by rank_politicians; reused by compute_bh_return
 # to avoid redundant API calls in the same daily run.
@@ -151,11 +159,49 @@ def _compute_score(avg_return: float, win_rate: float, sharpe: float, n_trades: 
     return round(raw * 100, 1)
 
 
-def _fetch_historical_prices_bulk(tickers: list[str], start: datetime, end: datetime) -> dict[tuple, float]:
+def _fetch_historical_prices_bulk(
+    tickers: list[str],
+    start: datetime,
+    end: datetime,
+    force_refresh: bool = False,
+) -> dict[tuple, float]:
     """
-    Fetch 12 months of daily bars for all tickers in batches of 100.
+    Fetch daily bars for all tickers via Alpaca IEX.
     Returns {(ticker, 'YYYY-MM-DD') -> close_price} for fast lookup.
+
+    Results are saved to prices_cache.pkl and reloaded on subsequent calls
+    with the same date range and ticker set. This is critical for backtest
+    consistency: IEX is a best-effort feed that returns non-deterministic
+    coverage across separate API calls; sharing one cached fetch guarantees
+    both backtest.py and backtest_comparison.py use identical price data.
+
+    Pass force_refresh=True to discard the cache and re-fetch from Alpaca.
     """
+    # Normaliza el end al buffer estándar para garantizar cache keys consistentes
+    # entre todos los scripts (backtest, comparison, lag, costs).
+    normalized_end = end + timedelta(days=_PRICES_END_BUFFER)
+
+    start_key  = start.strftime("%Y-%m-%d")
+    end_key    = normalized_end.strftime("%Y-%m-%d")
+    ticker_key = frozenset(tickers)
+
+    # ── Try loading from cache ────────────────────────────────────────────────
+    if not force_refresh and _PRICES_CACHE_FILE.exists():
+        try:
+            with open(_PRICES_CACHE_FILE, "rb") as f:
+                cached = pickle.load(f)
+            meta = cached.get("meta", {})
+            if (meta.get("start") == start_key
+                    and meta.get("end") == end_key
+                    and meta.get("tickers") == ticker_key):
+                print(f"[prices] Cargado de cache ({len(cached['lookup'])} puntos).")
+                return cached["lookup"]
+            else:
+                print("[prices] Cache encontrado pero metadatos distintos — refetch.")
+        except Exception:
+            print("[prices] Cache corrupto — refetch.")
+
+    # ── Fetch from Alpaca IEX ─────────────────────────────────────────────────
     lookup: dict[tuple, float] = {}
     batch_size = 100
 
@@ -166,7 +212,7 @@ def _fetch_historical_prices_bulk(tickers: list[str], start: datetime, end: date
                 symbol_or_symbols=batch,
                 timeframe=TimeFrame.Day,
                 start=start,
-                end=end,
+                end=normalized_end,   # siempre usa el end normalizado
                 feed=DataFeed.IEX,
             )
             bars = _get_data_client().get_stock_bars(req)
@@ -174,7 +220,6 @@ def _fetch_historical_prices_bulk(tickers: list[str], start: datetime, end: date
             if df.empty:
                 continue
 
-            # MultiIndex: (symbol, timestamp) -> close
             for sym in batch:
                 try:
                     if "symbol" in df.index.names:
@@ -188,6 +233,17 @@ def _fetch_historical_prices_bulk(tickers: list[str], start: datetime, end: date
                     pass
         except Exception:
             pass
+
+    # ── Save to cache ─────────────────────────────────────────────────────────
+    try:
+        with open(_PRICES_CACHE_FILE, "wb") as f:
+            pickle.dump({
+                "meta": {"start": start_key, "end": end_key, "tickers": ticker_key},
+                "lookup": lookup,
+            }, f)
+        print(f"[prices] Cache guardado ({len(lookup)} puntos → prices_cache.pkl).")
+    except Exception as e:
+        print(f"[prices] WARN: no se pudo guardar el cache: {e}")
 
     return lookup
 
@@ -286,7 +342,9 @@ def rank_politicians(trades: list[dict]) -> list[dict]:
             "n_trades":  len(pol_buys),
         })
 
-    rankings.sort(key=lambda x: x["score"], reverse=True)
+    _sort_key = {"composite": "score", "best_ret": "return", "best_wr": "win_rate"}.get(RANK_BY, "return")
+    rankings.sort(key=lambda x: x[_sort_key], reverse=True)
+    print(f"[analyzer] Ranking por '{RANK_BY}' (campo: '{_sort_key}').")
 
     # Cache for reuse in compute_bh_return (same daily run, no extra API calls)
     global _cached_hist_lookup, _cached_current_prices

@@ -37,6 +37,10 @@ SCORE_W_WINRATE = float(os.getenv("SCORE_W_WINRATE", "0.30"))
 SCORE_W_SHARPE  = float(os.getenv("SCORE_W_SHARPE",  "0.20"))
 SCORE_W_TRADES  = float(os.getenv("SCORE_W_TRADES",  "0.10"))
 
+# Ranking criterion: composite | best_ret | best_wr
+# backtest_comparison.py showed best_ret (+14.90%) beats composite (-12.57%) over 8 periods
+RANK_BY = os.getenv("RANK_BY", "best_ret")
+
 # ── Risk controls (YOLO MODE 🚀) ──────────────────────────────────────────────
 MAX_POSITION_PCT = float(os.getenv("MAX_POSITION_PCT", "0.20"))   # 20% por posición
 MAX_SECTOR_PCT   = float(os.getenv("MAX_SECTOR_PCT",   "1.00"))   # sin límite sector
