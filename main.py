@@ -1,11 +1,16 @@
 """
-Entry point — Post-Earnings Announcement Drift (PEAD) strategy.
+Entry point — runs two strategies each weekday at 15:35 UTC:
 
-Each weekday at 15:35 (Spain):
-  1. Exit positions held longer than HOLD_DAYS or stopped out
-  2. Scan S&P 500 for today's earnings beats
-  3. Buy the top beats with available slots
-  4. Email summary + log
+  1. PEAD (Post-Earnings Announcement Drift) — live trading on Alpaca
+       a. Exit stale / stopped positions
+       b. Scan S&P 500 earnings beats
+       c. Buy top beats
+       d. Email summary + log to results_earnings.csv
+
+  2. Congressional monitor — analysis only, no trading (would conflict with PEAD)
+       a. Fetch Capitol Trades data
+       b. Rank politicians by best_ret
+       c. Log top performer snapshot to results.csv for dashboard tracking
 """
 
 import sys
@@ -18,8 +23,10 @@ from trader import (
     buy_earnings_position, exit_position, check_earnings_stops,
 )
 from emailer import send_earnings_summary
-from logger import log_earnings_daily
-from config import HOLD_DAYS, MAX_POSITIONS
+from logger import log_earnings_daily, log_daily
+from scraper import get_stock_trades
+from analyzer import rank_politicians, get_open_positions, compute_bh_return
+from config import HOLD_DAYS, MAX_POSITIONS, TOP_PERFORMERS
 
 
 def run() -> None:
@@ -87,6 +94,31 @@ def run() -> None:
         trade_log=log,
         beats_found=len(beats),
     )
+
+    print("[main] PEAD done.")
+
+    # ── Congressional monitor (no trading — would conflict with PEAD) ──────────
+    print(f"\n[{datetime.now():%Y-%m-%d %H:%M}] Congressional analysis starting…")
+    try:
+        trades   = get_stock_trades()
+        rankings = rank_politicians(trades)
+
+        if rankings:
+            top       = rankings[0]
+            positions = get_open_positions(top["pol_id"], trades)
+            bh_return = compute_bh_return(positions)
+            log_daily(
+                top_performer=top,
+                account_equity=equity,   # PEAD account equity — shared baseline
+                target_positions=positions,
+                trade_log=[],            # monitor only, no orders placed
+                bh_return=bh_return,
+            )
+            print(f"[main] Congressional top: {top['pol_name']} ({top['return']:+.1%} return, {top['win_rate']:.0%} wr)")
+        else:
+            print("[main] Congressional: no qualifying politicians found.")
+    except Exception as e:
+        print(f"[main] Congressional analysis failed: {e}")
 
     print("[main] Done.")
 
