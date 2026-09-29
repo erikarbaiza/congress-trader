@@ -1,6 +1,14 @@
 {
   "AAPL": "Technology",
+  "AMAT": "Technology",
+  "ASML": "Technology",
+  "AVGO": "Technology",
+  "AXP": "Financial Services",
+  "CSCO": "Technology",
+  "DELL": "Technology",
+  "GS": "Financial Services",
   "JPM": "Financial Services",
+  "MNST": "Consumer Defensive",
   "RY": "Financial Services",
   "XOM": "Energy"
 }
