@@ -1,14 +1,22 @@
 {
   "AAPL": "Technology",
   "AMAT": "Technology",
+  "AMZN": "Consumer Cyclical",
   "ASML": "Technology",
   "AVGO": "Technology",
   "AXP": "Financial Services",
   "CSCO": "Technology",
   "DELL": "Technology",
+  "ERIE": "Financial Services",
+  "ES": "Utilities",
+  "FCBN": "unknown",
+  "GOOGL": "Communication Services",
   "GS": "Financial Services",
   "JPM": "Financial Services",
   "MNST": "Consumer Defensive",
+  "MSFT": "Technology",
+  "MU": "Technology",
+  "NI": "Utilities",
   "RY": "Financial Services",
   "XOM": "Energy"
 }
