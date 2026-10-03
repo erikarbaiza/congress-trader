@@ -389,3 +389,33 @@ def send_summary(
     resp.raise_for_status()
 
     print(f"[emailer] Summary sent to {EMAIL_TO}")
+
+
+def send_crash_alert(traceback_text: str) -> None:
+    """Send a crash notification email when main.run() raises an unhandled exception."""
+    now = datetime.now()
+    subject = f"🚨 CongressTrader CRASHED — {now:%Y-%m-%d %H:%M}"
+    html = f"""
+    <html><body style="font-family:Arial,sans-serif;color:#1a1a1a;max-width:700px;margin:auto;padding:20px">
+    <div style="background:#dc2626;color:white;padding:16px 24px;border-radius:10px 10px 0 0">
+      <h2 style="margin:0">🚨 CongressTrader — fallo en ejecución</h2>
+      <p style="margin:4px 0 0;opacity:.85;font-size:14px">{now:%Y-%m-%d %H:%M:%S}</p>
+    </div>
+    <div style="background:#fef2f2;border:1px solid #fecaca;padding:20px 24px">
+      <p style="margin:0 0 16px;font-size:14px">
+        <code>main.run()</code> lanzó una excepción no capturada. El bot <strong>no ejecutó</strong> ese día.
+      </p>
+      <pre style="background:#1e293b;color:#f8fafc;padding:16px;border-radius:8px;
+                  font-size:12px;overflow:auto;white-space:pre-wrap">{traceback_text}</pre>
+    </div>
+    </body></html>
+    """
+    resp = requests.post(
+        "https://api.resend.com/emails",
+        headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
+        json={"from": "CongressTrader <onboarding@resend.dev>", "to": [EMAIL_TO],
+              "subject": subject, "html": html},
+        timeout=30,
+    )
+    resp.raise_for_status()
+    print(f"[emailer] Crash alert sent to {EMAIL_TO}")
