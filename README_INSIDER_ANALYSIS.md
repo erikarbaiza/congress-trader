@@ -100,11 +100,13 @@ Para medir la sensibilidad a ese lag se corrió el backtest con tres offsets de 
 
 **Pregunta:** ¿la caída de alpha de T+0 a T+1 es una pérdida real de edge o ruido estadístico?
 
-Con $n = 123$ señales, si la desviación estándar del alpha por operación es $\sigma \approx 6\%$ (valor típico para retornos de 30 días en acciones individuales), el **error estándar de la media** es:
+El análisis usa el **error estándar del alpha medio** — es decir, la incertidumbre sobre el valor promedio del alpha por operación expresado en puntos porcentuales de retorno, no la incertidumbre sobre la proporción "baten SPY" (que sería un SE de proporción con fórmula distinta, ~4–5 pp en esta muestra). Son dos métricas sobre la misma muestra pero que responden preguntas diferentes; aquí interesa la magnitud del efecto en retorno, no si supera o no al SPY.
 
-$$SE = \frac{\sigma}{\sqrt{n}} = \frac{6\%}{\sqrt{123}} \approx 0.54\%$$
+Con $n = 123$ señales, si la desviación estándar del alpha por operación es $\sigma \approx 6\%$ (valor típico para retornos de 30 días en acciones individuales), el **error estándar del alpha medio** es:
 
-La diferencia observada entre T+0 y T+1 (ver tabla en sección 4) es ~0.30 puntos porcentuales, menor que un error estándar. **No se puede rechazar la hipótesis nula de que T+0 = T+1.** La caída es ruido estadístico: el edge no depende de ejecución en tiempo real.
+$$SE_{\bar{\alpha}} = \frac{\sigma}{\sqrt{n}} = \frac{6\%}{\sqrt{123}} \approx 0.54\text{ pp}$$
+
+La diferencia de alpha medio entre T+0 y T+1 (ver tabla en sección 4) es ~0.30 pp, menor que un $SE_{\bar{\alpha}}$. **No se puede rechazar la hipótesis nula de que el alpha medio en T+0 = el alpha medio en T+1.** La caída es ruido estadístico: el edge no depende de ejecución en tiempo real.
 
 ### 3.3 Costes netos: modelo de comisiones y slippage
 
