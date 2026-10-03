@@ -46,7 +46,7 @@ MAX_POSITION_PCT = float(os.getenv("MAX_POSITION_PCT", "0.20"))   # 20% por posi
 MAX_SECTOR_PCT   = float(os.getenv("MAX_SECTOR_PCT",   "1.00"))   # sin límite sector
 MIN_PRICE        = float(os.getenv("MIN_PRICE",        "5.0"))    # no penny stocks
 MIN_VOLUME       = int(os.getenv("MIN_VOLUME",         "40000"))  # min avg daily volume
-STOP_LOSS_PCT    = float(os.getenv("STOP_LOSS_PCT",    "0.00"))   # sin stop-loss
+STOP_LOSS_PCT    = float(os.getenv("STOP_LOSS_PCT",    "0.08"))   # 8% stop-loss
 TAKE_PROFIT_PCT  = float(os.getenv("TAKE_PROFIT_PCT",  "1.00"))   # take-profit al 100% (x2)
 
 CAPITOLTRADES_BFF = "https://bff.capitoltrades.com"

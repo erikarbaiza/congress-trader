@@ -80,8 +80,11 @@ def check_earnings_stops(current: dict[str, dict]) -> list[dict]:
                     "action": "STOP_LOSS", "ticker": ticker, "qty": None,
                     "reason": f"down {change:.1%} from ${entry:.2f}",
                 })
-            except Exception:
-                pass
+            except Exception as e:
+                results.append({
+                    "action": "ERROR_STOP", "ticker": ticker, "qty": None,
+                    "reason": str(e),
+                })
     return results
 
 _trading_client = None
