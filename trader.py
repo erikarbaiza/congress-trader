@@ -22,20 +22,32 @@ from datetime import datetime, timedelta, timezone
 
 from config import (
     ALPACA_KEY, ALPACA_SECRET, PAPER_TRADING, DEPLOY_BUDGET,
-    MAX_POSITIONS, MAX_POSITION_PCT, MAX_SECTOR_PCT,
-    MIN_PRICE, MIN_VOLUME, STOP_LOSS_PCT, TAKE_PROFIT_PCT,
+    MAX_POSITIONS, MAX_POSITION_PCT, MIN_POSITION_PCT, SURPRISE_SCALE_PCT, MAX_SECTOR_PCT,
+    MIN_PRICE, MIN_VOLUME, MIN_SURPRISE_PCT, STOP_LOSS_PCT, TAKE_PROFIT_PCT,
 )
 
 
 # ── Earnings strategy helpers ──────────────────────────────────────────────────
 
+def calc_position_pct(surprise_pct: float) -> float:
+    """Scale position size linearly from MIN_POSITION_PCT to MAX_POSITION_PCT.
+
+    MIN_POSITION_PCT at MIN_SURPRISE_PCT (threshold floor),
+    MAX_POSITION_PCT at SURPRISE_SCALE_PCT and above.
+    """
+    span = max(SURPRISE_SCALE_PCT - MIN_SURPRISE_PCT, 1e-6)
+    t = min(1.0, max(0.0, (surprise_pct / 100 - MIN_SURPRISE_PCT) / span))
+    return MIN_POSITION_PCT + t * (MAX_POSITION_PCT - MIN_POSITION_PCT)
+
+
 def buy_earnings_position(ticker: str, beat: dict, equity: float, n_slots: int) -> dict:
-    """Buy a position sized as equity/n_slots, capped at MAX_POSITION_PCT."""
+    """Buy a position sized proportionally to EPS surprise, capped at MAX_POSITION_PCT."""
     price = beat.get("price", 0)
     if not price:
         return {"action": "SKIP", "ticker": ticker, "qty": 0, "reason": "no price data"}
 
-    value = min(equity / max(n_slots, 1), equity * MAX_POSITION_PCT)
+    position_pct = calc_position_pct(beat.get("surprise_pct", 0))
+    value = equity * position_pct
     qty   = int(value / price)
     if qty < 1:
         return {"action": "SKIP", "ticker": ticker, "qty": 0, "reason": "position too small"}
@@ -47,7 +59,11 @@ def buy_earnings_position(ticker: str, beat: dict, equity: float, n_slots: int) 
         ))
         return {
             "action": "BUY", "ticker": ticker, "qty": qty,
-            "reason": f"EPS beat +{beat['surprise_pct']:.1f}% (actual {beat['actual_eps']:.3f} vs est {beat['estimated_eps']:.3f})",
+            "reason": (
+                f"EPS beat +{beat['surprise_pct']:.1f}% "
+                f"(actual {beat['actual_eps']:.3f} vs est {beat['estimated_eps']:.3f}) "
+                f"→ {position_pct:.0%} equity"
+            ),
         }
     except Exception as e:
         return {"action": "SKIP", "ticker": ticker, "qty": 0, "reason": str(e)}

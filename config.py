@@ -24,12 +24,14 @@ EMAIL_TO       = os.environ["EMAIL_TO"]
 # ── Strategy ──────────────────────────────────────────────────────────────────
 DEPLOY_BUDGET    = float(os.getenv("DEPLOY_BUDGET", "0"))
 MIN_TRADES       = int(os.getenv("MIN_TRADES", "5"))
-MAX_POSITIONS    = int(os.getenv("MAX_POSITIONS", "8"))
+MAX_POSITIONS    = int(os.getenv("MAX_POSITIONS", "12"))
 TOP_PERFORMERS   = int(os.getenv("TOP_PERFORMERS", "1"))
 
 # ── Earnings Momentum (PEAD) ──────────────────────────────────────────────────
 HOLD_DAYS        = int(os.getenv("HOLD_DAYS",          "10"))   # calendar days to hold
+DAYS_BACK_BEATS  = int(os.getenv("DAYS_BACK_BEATS",   "3"))    # lookback for earnings beats; 3 catches Friday post-mkt on Monday
 MIN_SURPRISE_PCT = float(os.getenv("MIN_SURPRISE_PCT", "0.05")) # min EPS beat (5%)
+MIN_EPS_ESTIMATE = float(os.getenv("MIN_EPS_ESTIMATE", "0.10")) # |EPS estimate| floor in $; below it the % surprise is noise
 
 # Score weights — must sum to 1.0. Treat as hyperparameters; optimise via backtest.
 SCORE_W_RETURN  = float(os.getenv("SCORE_W_RETURN",  "0.40"))
@@ -42,11 +44,13 @@ SCORE_W_TRADES  = float(os.getenv("SCORE_W_TRADES",  "0.10"))
 RANK_BY = os.getenv("RANK_BY", "best_ret")
 
 # ── Risk controls (YOLO MODE 🚀) ──────────────────────────────────────────────
-MAX_POSITION_PCT = float(os.getenv("MAX_POSITION_PCT", "0.20"))   # 20% por posición
-MAX_SECTOR_PCT   = float(os.getenv("MAX_SECTOR_PCT",   "1.00"))   # sin límite sector
+MAX_POSITION_PCT  = float(os.getenv("MAX_POSITION_PCT",  "0.20"))  # 20% por posición (techo)
+MIN_POSITION_PCT  = float(os.getenv("MIN_POSITION_PCT",  "0.05"))  # 5% para beats mínimos
+SURPRISE_SCALE_PCT = float(os.getenv("SURPRISE_SCALE_PCT", "0.30")) # sorpresa EPS que dispara el techo
+MAX_SECTOR_PCT   = float(os.getenv("MAX_SECTOR_PCT",   "0.35"))   # 35% por sector
 MIN_PRICE        = float(os.getenv("MIN_PRICE",        "5.0"))    # no penny stocks
 MIN_VOLUME       = int(os.getenv("MIN_VOLUME",         "40000"))  # min avg daily volume
-STOP_LOSS_PCT    = float(os.getenv("STOP_LOSS_PCT",    "0.08"))   # 8% stop-loss
+STOP_LOSS_PCT    = float(os.getenv("STOP_LOSS_PCT",    "0.08"))   # 8% stop-loss — valor conservador sin calibrar; revisar con datos reales tras ~50 ops PEAD
 TAKE_PROFIT_PCT  = float(os.getenv("TAKE_PROFIT_PCT",  "1.00"))   # take-profit al 100% (x2)
 
 CAPITOLTRADES_BFF = "https://bff.capitoltrades.com"

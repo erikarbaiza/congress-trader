@@ -391,6 +391,69 @@ def send_summary(
     print(f"[emailer] Summary sent to {EMAIL_TO}")
 
 
+def send_sell_alert(sold: list[dict], equity: float) -> None:
+    """Dedicated alert when PEAD positions are closed (SELL, STOP_LOSS, or TAKE_PROFIT)."""
+    now = datetime.now()
+    tickers = ", ".join(s["ticker"] for s in sold)
+
+    action_labels = {
+        "SELL":        ("\U0001f534", "Ventana PEAD cerrada"),
+        "STOP_LOSS":   ("\U0001f6d1", "Stop-loss activado"),
+        "TAKE_PROFIT": ("\U0001f4b0", "Take-profit activado"),
+    }
+
+    rows = ""
+    for s in sold:
+        icon, label = action_labels.get(s["action"], ("•", s["action"]))
+        rows += (
+            f"<tr>"
+            f"<td style='padding:10px 14px;font-size:15px;font-weight:700'>{icon} {s['ticker']}</td>"
+            f"<td style='padding:10px 14px'>{label}</td>"
+            f"<td style='padding:10px 14px;color:#64748b;font-size:13px'>{s.get('reason','')}</td>"
+            f"</tr>"
+        )
+
+    equity_vs_start = equity - 100_000
+    eq_sign  = "+" if equity_vs_start >= 0 else ""
+    eq_color = "#16a34a" if equity_vs_start >= 0 else "#dc2626"
+    subject  = f"CongressTrader: posicion cerrada -- {tickers}"
+
+    html = f"""
+    <html><body style="font-family:Arial,sans-serif;color:#1a1a1a;max-width:600px;margin:auto;padding:20px">
+    <div style="background:#0f172a;color:white;padding:16px 24px;border-radius:10px 10px 0 0">
+      <h2 style="margin:0;font-size:18px">CongressTrader -- Posicion cerrada</h2>
+      <p style="margin:4px 0 0;color:#94a3b8;font-size:13px">{now:%Y-%m-%d %H:%M}</p>
+    </div>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;padding:20px 24px">
+      <table style="width:100%;border-collapse:collapse;background:white;border:1px solid #e2e8f0;
+                    border-radius:8px;font-size:14px;margin-bottom:16px">
+        <tr style="background:#f1f5f9">
+          <th style="padding:8px 14px;text-align:left;color:#64748b">Ticker</th>
+          <th style="padding:8px 14px;text-align:left;color:#64748b">Razon</th>
+          <th style="padding:8px 14px;text-align:left;color:#64748b">Detalle</th>
+        </tr>
+        {rows}
+      </table>
+      <div style="background:white;border:1px solid #e2e8f0;border-radius:8px;padding:14px 18px">
+        <p style="margin:0;font-size:12px;color:#94a3b8;text-transform:uppercase">Portfolio tras la venta</p>
+        <p style="margin:4px 0 0;font-size:22px;font-weight:700">${equity:,.2f}</p>
+        <p style="margin:2px 0 0;font-size:13px;color:{eq_color}">{eq_sign}${equity_vs_start:,.2f} desde el inicio</p>
+      </div>
+    </div>
+    </body></html>
+    """
+
+    resp = requests.post(
+        "https://api.resend.com/emails",
+        headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
+        json={"from": "CongressTrader <onboarding@resend.dev>", "to": [EMAIL_TO],
+              "subject": subject, "html": html},
+        timeout=30,
+    )
+    resp.raise_for_status()
+    print(f"[emailer] Sell alert sent for {tickers}")
+
+
 def send_crash_alert(traceback_text: str) -> None:
     """Send a crash notification email when main.run() raises an unhandled exception."""
     now = datetime.now()

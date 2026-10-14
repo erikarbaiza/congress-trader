@@ -20,13 +20,22 @@ from earnings_scanner import get_earnings_beats
 from position_tracker import get_stale_tickers, record_entry, remove, get_all
 from trader import (
     get_account_equity, get_current_positions,
-    buy_earnings_position, exit_position, check_earnings_stops,
+    buy_earnings_position, exit_position, check_earnings_stops, calc_position_pct,
 )
-from emailer import send_earnings_summary
+from emailer import send_earnings_summary, send_sell_alert
 from logger import log_earnings_daily, log_daily
 from scraper import get_stock_trades
 from analyzer import rank_politicians, get_open_positions, compute_bh_return
-from config import HOLD_DAYS, MAX_POSITIONS, TOP_PERFORMERS
+from collections import defaultdict
+from config import HOLD_DAYS, MAX_POSITIONS, MAX_SECTOR_PCT, TOP_PERFORMERS, DAYS_BACK_BEATS
+from trade_journal import record_open, record_close
+
+
+def _journal_close(ticker: str, pos: dict, reason: str) -> None:
+    try:
+        record_close(ticker, pos["avg_entry_price"], pos["current_price"], reason)
+    except Exception as e:
+        print(f"[main] trade journal failed for {ticker} (non-critical): {e}")
 
 
 def run() -> None:
@@ -42,16 +51,31 @@ def run() -> None:
         if ticker in current:
             result = exit_position(ticker, reason=f"PEAD window closed ({HOLD_DAYS}d elapsed)")
             log.append(result)
-            remove(ticker)
-            print(f"  EXIT {ticker} — hold period elapsed")
+            if result["action"] == "SELL":
+                _journal_close(ticker, current[ticker], result["reason"])
+                remove(ticker)
+                print(f"  EXIT {ticker} — hold period elapsed")
+            else:
+                print(f"  EXIT {ticker} FAILED — kept in tracker, retry next run: {result['reason']}")
 
     # 2. Stop-loss sweep
     current = get_current_positions()
     stops   = check_earnings_stops(current)
     for entry in stops:
         log.append(entry)
-        remove(entry["ticker"])
-        print(f"  STOP {entry['ticker']} — {entry['reason']}")
+        if entry["action"] == "STOP_LOSS":
+            _journal_close(entry["ticker"], current[entry["ticker"]], entry["reason"])
+            remove(entry["ticker"])
+        print(f"  {entry['action']} {entry['ticker']} — {entry['reason']}")
+
+    # 2.5. Sell alert — fires immediately when positions close, before the daily summary
+    _sell_actions = {"SELL", "STOP_LOSS", "TAKE_PROFIT"}
+    sells_today = [e for e in log if e.get("action") in _sell_actions]
+    if sells_today:
+        try:
+            send_sell_alert(sells_today, get_account_equity())
+        except Exception as _e:
+            print(f"[main] sell alert failed (non-critical): {_e}")
 
     # 3. Count available position slots
     current = get_current_positions()
@@ -59,23 +83,40 @@ def run() -> None:
     print(f"[main] {len(current)} positions open, {slots} slots available")
 
     # 4. Scan for earnings beats
-    beats = get_earnings_beats(days_back=2)
+    beats = get_earnings_beats(days_back=DAYS_BACK_BEATS)
 
-    # 5. Buy new beats
+    # 5. Buy new beats — with sector cap enforced per run
     new_buys: list[dict] = []
+    sector_capital: dict[str, float] = defaultdict(float)
     for beat in beats:
         if slots <= 0:
             break
         if beat["ticker"] in current:
             continue
+
+        sector = beat.get("sector") or "unknown"
         equity = get_account_equity()
+        intended_value = equity * calc_position_pct(beat.get("surprise_pct", 0))
+        if sector_capital[sector] + intended_value > equity * MAX_SECTOR_PCT:
+            log.append({
+                "action": "SKIP", "ticker": beat["ticker"], "qty": None,
+                "reason": f"sector cap: {sector} already at {sector_capital[sector]/equity:.0%} of {MAX_SECTOR_PCT:.0%} limit",
+            })
+            print(f"  SKIP {beat['ticker']:6} — sector cap ({sector})")
+            continue
+
         result = buy_earnings_position(beat["ticker"], beat, equity, slots)
         log.append(result)
         if result["action"] == "BUY":
             record_entry(beat["ticker"])
+            try:
+                record_open(beat["ticker"], beat, calc_position_pct(beat.get("surprise_pct", 0)))
+            except Exception as e:
+                print(f"[main] trade journal open failed (non-critical): {e}")
             new_buys.append(beat)
             slots -= 1
-            print(f"  BUY  {beat['ticker']:6} — EPS +{beat['surprise_pct']:.1f}%")
+            sector_capital[sector] += intended_value
+            print(f"  BUY  {beat['ticker']:6} — EPS +{beat['surprise_pct']:.1f}% ({sector})")
 
     # 6. Email + log
     equity   = get_account_equity()

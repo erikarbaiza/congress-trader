@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 import yfinance as yf
 
-from config import ALPACA_KEY, ALPACA_SECRET, MIN_PRICE, MIN_VOLUME, MIN_SURPRISE_PCT
+from config import ALPACA_KEY, ALPACA_SECRET, MIN_PRICE, MIN_VOLUME, MIN_SURPRISE_PCT, MIN_EPS_ESTIMATE
 
 _SP500_FALLBACK = [
     "AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA", "JPM", "LLY", "V",
@@ -86,7 +86,7 @@ def _check_beat(sym: str, days_back: int) -> dict | None:
 
             estimate = row.get("EPS Estimate")
             actual   = row.get("Reported EPS")
-            if pd.isna(estimate) or pd.isna(actual) or estimate == 0:
+            if pd.isna(estimate) or pd.isna(actual) or abs(float(estimate)) < MIN_EPS_ESTIMATE:
                 continue
 
             surprise_pct = (float(actual) - float(estimate)) / abs(float(estimate)) * 100
