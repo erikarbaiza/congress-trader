@@ -6,6 +6,7 @@
   "ASML": "Technology",
   "AVGO": "Technology",
   "AXP": "Financial Services",
+  "CMI": "Industrials",
   "CRWD": "Technology",
   "CSCO": "Technology",
   "DELL": "Technology",
@@ -15,12 +16,15 @@
   "FN": "Technology",
   "GOOGL": "Communication Services",
   "GS": "Financial Services",
+  "IFNNY": "Technology",
   "JPM": "Financial Services",
   "MNST": "Consumer Defensive",
   "MSFT": "Technology",
   "MU": "Technology",
   "NI": "Utilities",
   "NICE": "Technology",
+  "NTES": "Communication Services",
+  "PANW": "Technology",
   "RY": "Financial Services",
   "XOM": "Energy"
 }
