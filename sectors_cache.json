@@ -1,4 +1,5 @@
 {
+  "AAL": "Industrials",
   "AAPL": "Technology",
   "AMAT": "Technology",
   "AMD": "Technology",
@@ -7,6 +8,8 @@
   "AVGO": "Technology",
   "AXP": "Financial Services",
   "CMI": "Industrials",
+  "CNC": "Healthcare",
+  "COIN": "Financial Services",
   "CRWD": "Technology",
   "CSCO": "Technology",
   "DELL": "Technology",
@@ -14,9 +17,13 @@
   "ES": "Utilities",
   "FCBN": "unknown",
   "FN": "Technology",
+  "GNPX": "Healthcare",
   "GOOGL": "Communication Services",
   "GS": "Financial Services",
+  "HOG": "Consumer Cyclical",
+  "HY": "Industrials",
   "IFNNY": "Technology",
+  "IHG": "Consumer Cyclical",
   "JPM": "Financial Services",
   "MNST": "Consumer Defensive",
   "MSFT": "Technology",
@@ -26,5 +33,8 @@
   "NTES": "Communication Services",
   "PANW": "Technology",
   "RY": "Financial Services",
+  "RYCEY": "Industrials",
+  "SMPL": "Consumer Defensive",
+  "UNH": "Healthcare",
   "XOM": "Energy"
 }
