@@ -1,6 +1,8 @@
 {
   "AAL": "Industrials",
   "AAPL": "Technology",
+  "ACN": "Technology",
+  "ADBE": "Technology",
   "AMAT": "Technology",
   "AMD": "Technology",
   "AMZN": "Consumer Cyclical",
@@ -31,11 +33,13 @@
   "MU": "Technology",
   "NI": "Utilities",
   "NICE": "Technology",
+  "NOW": "Technology",
   "NTES": "Communication Services",
   "PANW": "Technology",
   "RY": "Financial Services",
   "RYCEY": "Industrials",
   "SMPL": "Consumer Defensive",
   "UNH": "Healthcare",
-  "XOM": "Energy"
+  "XOM": "Energy",
+  "ZTS": "unknown"
 }

@@ -4,5 +4,11 @@
     "position_pct": 0.058,
     "sector": "Real Estate",
     "surprise_pct": 6.33
+  },
+  "RBB": {
+    "entry_date": "2026-10-20T19:32:57.781792+00:00",
+    "position_pct": 0.1855,
+    "sector": "Financial Services",
+    "surprise_pct": 27.59
   }
 }
