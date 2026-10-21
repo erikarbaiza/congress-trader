@@ -47,6 +47,9 @@ RANK_BY = os.getenv("RANK_BY", "best_ret")
 MAX_POSITION_PCT  = float(os.getenv("MAX_POSITION_PCT",  "0.20"))  # 20% por posición (techo)
 MIN_POSITION_PCT  = float(os.getenv("MIN_POSITION_PCT",  "0.05"))  # 5% para beats mínimos
 SURPRISE_SCALE_PCT = float(os.getenv("SURPRISE_SCALE_PCT", "0.30")) # sorpresa EPS que dispara el techo
+MAX_INVESTED_PCT   = float(os.getenv("MAX_INVESTED_PCT",   "1.00"))  # exposicion bruta maxima (1.0 = sin margen)
+SMALL_CAP_USD      = float(os.getenv("SMALL_CAP_USD",      "10e9"))  # por debajo (o sin dato) se aplica el tope pequeño
+SMALL_CAP_POSITION_PCT = float(os.getenv("SMALL_CAP_POSITION_PCT", "0.08"))  # tope por posicion en small caps
 MAX_SECTOR_PCT   = float(os.getenv("MAX_SECTOR_PCT",   "0.35"))   # 35% por sector
 MIN_PRICE        = float(os.getenv("MIN_PRICE",        "5.0"))    # no penny stocks
 MIN_VOLUME       = int(os.getenv("MIN_VOLUME",         "40000"))  # min avg daily volume

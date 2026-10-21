@@ -23,32 +23,39 @@ from datetime import datetime, timedelta, timezone
 from config import (
     ALPACA_KEY, ALPACA_SECRET, PAPER_TRADING, DEPLOY_BUDGET,
     MAX_POSITIONS, MAX_POSITION_PCT, MIN_POSITION_PCT, SURPRISE_SCALE_PCT, MAX_SECTOR_PCT,
+    SMALL_CAP_USD, SMALL_CAP_POSITION_PCT,
     MIN_PRICE, MIN_VOLUME, MIN_SURPRISE_PCT, STOP_LOSS_PCT, TAKE_PROFIT_PCT,
 )
 
 
 # ── Earnings strategy helpers ──────────────────────────────────────────────────
 
-def calc_position_pct(surprise_pct: float) -> float:
+def calc_position_pct(surprise_pct: float, market_cap: float | None = None) -> float:
     """Scale position size linearly from MIN_POSITION_PCT to MAX_POSITION_PCT.
 
     MIN_POSITION_PCT at MIN_SURPRISE_PCT (threshold floor),
     MAX_POSITION_PCT at SURPRISE_SCALE_PCT and above.
+    Small caps (or unknown market cap) are further capped at SMALL_CAP_POSITION_PCT.
     """
     span = max(SURPRISE_SCALE_PCT - MIN_SURPRISE_PCT, 1e-6)
     t = min(1.0, max(0.0, (surprise_pct / 100 - MIN_SURPRISE_PCT) / span))
-    return MIN_POSITION_PCT + t * (MAX_POSITION_PCT - MIN_POSITION_PCT)
+    pct = MIN_POSITION_PCT + t * (MAX_POSITION_PCT - MIN_POSITION_PCT)
+    if not market_cap or market_cap < SMALL_CAP_USD:
+        pct = min(pct, SMALL_CAP_POSITION_PCT)
+    return pct
 
 
-def buy_earnings_position(ticker: str, beat: dict, equity: float, n_slots: int) -> dict:
-    """Buy a position sized proportionally to EPS surprise, capped at MAX_POSITION_PCT."""
+def buy_earnings_position(ticker: str, beat: dict, equity: float, n_slots: int,
+                          room: float | None = None) -> dict:
+    """Buy a position sized by EPS surprise; `room` is the $ left under the gross-exposure cap."""
     price = beat.get("price", 0)
     if not price:
         return {"action": "SKIP", "ticker": ticker, "qty": 0, "reason": "no price data"}
 
-    position_pct = calc_position_pct(beat.get("surprise_pct", 0))
-    value = equity * position_pct
-    qty   = int(value / price)
+    value = equity * calc_position_pct(beat.get("surprise_pct", 0), beat.get("market_cap"))
+    if room is not None:
+        value = min(value, room)
+    qty = int(value / price)
     if qty < 1:
         return {"action": "SKIP", "ticker": ticker, "qty": 0, "reason": "position too small"}
 
@@ -58,11 +65,11 @@ def buy_earnings_position(ticker: str, beat: dict, equity: float, n_slots: int) 
             side=OrderSide.BUY, time_in_force=TimeInForce.DAY,
         ))
         return {
-            "action": "BUY", "ticker": ticker, "qty": qty,
+            "action": "BUY", "ticker": ticker, "qty": qty, "value": qty * price,
             "reason": (
                 f"EPS beat +{beat['surprise_pct']:.1f}% "
                 f"(actual {beat['actual_eps']:.3f} vs est {beat['estimated_eps']:.3f}) "
-                f"→ {position_pct:.0%} equity"
+                f"→ {qty * price / equity:.0%} equity"
             ),
         }
     except Exception as e:

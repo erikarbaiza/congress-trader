@@ -27,7 +27,8 @@ from logger import log_earnings_daily, log_daily
 from scraper import get_stock_trades
 from analyzer import rank_politicians, get_open_positions, compute_bh_return
 from collections import defaultdict
-from config import HOLD_DAYS, MAX_POSITIONS, MAX_SECTOR_PCT, TOP_PERFORMERS, DAYS_BACK_BEATS
+from analyzer import _get_sectors
+from config import HOLD_DAYS, MAX_POSITIONS, MAX_SECTOR_PCT, MAX_INVESTED_PCT, TOP_PERFORMERS, DAYS_BACK_BEATS
 from trade_journal import record_open, record_close
 
 
@@ -85,9 +86,13 @@ def run() -> None:
     # 4. Scan for earnings beats
     beats = get_earnings_beats(days_back=DAYS_BACK_BEATS)
 
-    # 5. Buy new beats — with sector cap enforced per run
+    # 5. Buy new beats — gross-exposure cap and sector cap count already-open positions
     new_buys: list[dict] = []
     sector_capital: dict[str, float] = defaultdict(float)
+    invested = sum(p["market_value"] for p in current.values())
+    if current:
+        for t, sec in _get_sectors(list(current)).items():
+            sector_capital[sec] += current[t]["market_value"]
     for beat in beats:
         if slots <= 0:
             break
@@ -96,26 +101,36 @@ def run() -> None:
 
         sector = beat.get("sector") or "unknown"
         equity = get_account_equity()
-        intended_value = equity * calc_position_pct(beat.get("surprise_pct", 0))
+        room = equity * MAX_INVESTED_PCT - invested
+        if room <= 0:
+            log.append({
+                "action": "SKIP", "ticker": beat["ticker"], "qty": None,
+                "reason": f"exposure cap: {invested/equity:.0%} invested of {MAX_INVESTED_PCT:.0%} limit",
+            })
+            print(f"  SKIP {beat['ticker']:6} — exposure cap ({invested/equity:.0%} invested)")
+            continue
+
+        intended_value = min(equity * calc_position_pct(beat.get("surprise_pct", 0), beat.get("market_cap")), room)
         if sector_capital[sector] + intended_value > equity * MAX_SECTOR_PCT:
             log.append({
                 "action": "SKIP", "ticker": beat["ticker"], "qty": None,
-                "reason": f"sector cap: {sector} already at {sector_capital[sector]/equity:.0%} of {MAX_SECTOR_PCT:.0%} limit",
+                "reason": f"sector cap: {sector} at {sector_capital[sector]/equity:.0%} (+{intended_value/equity:.0%}) of {MAX_SECTOR_PCT:.0%} limit",
             })
             print(f"  SKIP {beat['ticker']:6} — sector cap ({sector})")
             continue
 
-        result = buy_earnings_position(beat["ticker"], beat, equity, slots)
+        result = buy_earnings_position(beat["ticker"], beat, equity, slots, room=room)
         log.append(result)
         if result["action"] == "BUY":
             record_entry(beat["ticker"])
             try:
-                record_open(beat["ticker"], beat, calc_position_pct(beat.get("surprise_pct", 0)))
+                record_open(beat["ticker"], beat, result["value"] / equity)
             except Exception as e:
                 print(f"[main] trade journal open failed (non-critical): {e}")
             new_buys.append(beat)
             slots -= 1
-            sector_capital[sector] += intended_value
+            invested += result["value"]
+            sector_capital[sector] += result["value"]
             print(f"  BUY  {beat['ticker']:6} — EPS +{beat['surprise_pct']:.1f}% ({sector})")
 
     # 6. Email + log

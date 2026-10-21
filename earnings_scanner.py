@@ -109,6 +109,7 @@ def _check_beat(sym: str, days_back: int) -> dict | None:
                 "estimated_eps": round(float(estimate), 4),
                 "price":         round(float(price), 2),
                 "sector":        sector,
+                "market_cap":    getattr(info, "market_cap", None),
                 "report_date":   str(naive.date()),
             }
     except Exception:
