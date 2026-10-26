@@ -1,0 +1,6 @@
+ticker,entry_date,exit_date,days_held,entry_price,exit_price,return_pct,surprise_pct,position_pct,sector,exit_reason
+BLK,,2026-10-26,,1098.52,1127.66,0.0265,,,,PEAD window closed (10d elapsed)
+C,,2026-10-26,,122.28,121.25,-0.0084,,,,PEAD window closed (10d elapsed)
+GS,,2026-10-26,,881.23,893.28,0.0137,,,,PEAD window closed (10d elapsed)
+PLD,2026-10-16,2026-10-26,10,125.34,126.31,0.0077,6.33,0.058,Real Estate,PEAD window closed (10d elapsed)
+UNH,,2026-10-26,,389.88,409.18,0.0495,,,,PEAD window closed (10d elapsed)
