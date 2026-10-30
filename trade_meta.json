@@ -29,16 +29,16 @@
     "sector": "Industrials",
     "surprise_pct": 9.89
   },
-  "RBB": {
-    "entry_date": "2026-10-20T19:32:57.781792+00:00",
-    "position_pct": 0.1855,
-    "sector": "Financial Services",
-    "surprise_pct": 27.59
-  },
   "RTX": {
     "entry_date": "2026-10-21T19:32:40.544176+00:00",
     "position_pct": 0.1818,
     "sector": "Industrials",
     "surprise_pct": 26.97
+  },
+  "SBUX": {
+    "entry_date": "2026-10-30T20:15:26.600550+00:00",
+    "position_pct": 0.07,
+    "sector": "Consumer Cyclical",
+    "surprise_pct": 12.68
   }
 }
