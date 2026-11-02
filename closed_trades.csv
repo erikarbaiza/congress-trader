@@ -1,7 +1,13 @@
-ticker,entry_date,exit_date,days_held,entry_price,exit_price,return_pct,surprise_pct,position_pct,sector,exit_reason
-BLK,,2026-10-26,,1098.52,1127.66,0.0265,,,,PEAD window closed (10d elapsed)
-C,,2026-10-26,,122.28,121.25,-0.0084,,,,PEAD window closed (10d elapsed)
-GS,,2026-10-26,,881.23,893.28,0.0137,,,,PEAD window closed (10d elapsed)
-PLD,2026-10-16,2026-10-26,10,125.34,126.31,0.0077,6.33,0.058,Real Estate,PEAD window closed (10d elapsed)
-UNH,,2026-10-26,,389.88,409.18,0.0495,,,,PEAD window closed (10d elapsed)
-RBB,2026-10-20,2026-10-30,10,26.22,25.55,-0.0256,27.59,0.1855,Financial Services,PEAD window closed (10d elapsed)
+ticker,entry_date,exit_date,days_held,entry_price,exit_price,return_pct,surprise_pct,position_pct,sector,exit_reason,exit_price_source
+BLK,,2026-10-27,,1098.52,1127.66,0.0265,,,,PEAD window closed (10d elapsed),fill
+C,,2026-10-27,,122.28,122.43,0.0013,,,,PEAD window closed (10d elapsed),fill
+GS,,2026-10-27,,881.23,910.00,0.0326,,,,PEAD window closed (10d elapsed),fill
+PLD,2026-10-16,2026-10-27,11,125.34,126.16,0.0066,6.33,0.058,Real Estate,PEAD window closed (10d elapsed),fill
+UNH,,2026-10-27,,389.88,411.40,0.0552,,,,PEAD window closed (10d elapsed),fill
+RBB,2026-10-20,2026-11-02,13,26.22,25.26,-0.0368,27.59,0.1855,Financial Services,PEAD window closed (10d elapsed),fill
+CB,2026-10-21,2026-11-02,12,355.07,368.98,0.0392,12.65,0.0959,Financial Services,PEAD window closed (10d elapsed),estimate
+ELV,2026-10-21,2026-11-02,12,439.96,410.00,-0.0681,49.04,0.2,Healthcare,PEAD window closed (10d elapsed),estimate
+GE,2026-10-21,2026-11-02,12,294.77,315.93,0.0718,11.39,0.0883,Industrials,PEAD window closed (10d elapsed),estimate
+ISRG,2026-10-21,2026-11-02,12,430.78,439.04,0.0192,13.64,0.1018,Healthcare,PEAD window closed (10d elapsed),estimate
+NOC,2026-10-21,2026-11-02,12,538.77,554.00,0.0283,9.89,0.0793,Industrials,PEAD window closed (10d elapsed),estimate
+RTX,2026-10-21,2026-11-02,12,189.51,202.94,0.0709,26.97,0.1818,Industrials,PEAD window closed (10d elapsed),estimate
