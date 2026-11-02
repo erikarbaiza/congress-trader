@@ -29,7 +29,7 @@ from analyzer import rank_politicians, get_open_positions, compute_bh_return
 from collections import defaultdict
 from analyzer import _get_sectors
 from config import HOLD_DAYS, MAX_POSITIONS, MAX_SECTOR_PCT, MAX_INVESTED_PCT, TOP_PERFORMERS, DAYS_BACK_BEATS
-from trade_journal import record_open, record_close
+from trade_journal import record_open, record_close, reconcile_exit_prices
 
 
 def _journal_close(ticker: str, pos: dict, reason: str) -> None:
@@ -39,8 +39,18 @@ def _journal_close(ticker: str, pos: dict, reason: str) -> None:
         print(f"[main] trade journal failed for {ticker} (non-critical): {e}")
 
 
+def _reconcile_journal() -> None:
+    try:
+        n = reconcile_exit_prices()
+        if n:
+            print(f"[main] trade journal: {n} exit price(s) replaced with the real fill")
+    except Exception as e:
+        print(f"[main] trade journal reconcile failed (non-critical): {e}")
+
+
 def run() -> None:
     print(f"[{datetime.now():%Y-%m-%d %H:%M}] CongressTrader — Earnings Momentum starting…")
+    _reconcile_journal()
 
     equity  = get_account_equity()
     current = get_current_positions()
@@ -151,6 +161,7 @@ def run() -> None:
         beats_found=len(beats),
     )
 
+    _reconcile_journal()
     print("[main] PEAD done.")
 
     # ── Congressional monitor (no trading — would conflict with PEAD) ──────────
