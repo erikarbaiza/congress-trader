@@ -5,9 +5,9 @@ GS,,2026-10-27,,881.23,910.00,0.0326,,,,PEAD window closed (10d elapsed),fill
 PLD,2026-10-16,2026-10-27,11,125.34,126.16,0.0066,6.33,0.058,Real Estate,PEAD window closed (10d elapsed),fill
 UNH,,2026-10-27,,389.88,411.40,0.0552,,,,PEAD window closed (10d elapsed),fill
 RBB,2026-10-20,2026-11-02,13,26.22,25.26,-0.0368,27.59,0.1855,Financial Services,PEAD window closed (10d elapsed),fill
-CB,2026-10-21,2026-11-02,12,355.07,368.98,0.0392,12.65,0.0959,Financial Services,PEAD window closed (10d elapsed),estimate
-ELV,2026-10-21,2026-11-02,12,439.96,410.00,-0.0681,49.04,0.2,Healthcare,PEAD window closed (10d elapsed),estimate
-GE,2026-10-21,2026-11-02,12,294.77,315.93,0.0718,11.39,0.0883,Industrials,PEAD window closed (10d elapsed),estimate
-ISRG,2026-10-21,2026-11-02,12,430.78,439.04,0.0192,13.64,0.1018,Healthcare,PEAD window closed (10d elapsed),estimate
-NOC,2026-10-21,2026-11-02,12,538.77,554.00,0.0283,9.89,0.0793,Industrials,PEAD window closed (10d elapsed),estimate
-RTX,2026-10-21,2026-11-02,12,189.51,202.94,0.0709,26.97,0.1818,Industrials,PEAD window closed (10d elapsed),estimate
+CB,2026-10-21,2026-11-03,13,355.07,366.20,0.0314,12.65,0.0959,Financial Services,PEAD window closed (10d elapsed),fill
+ELV,2026-10-21,2026-11-03,13,439.96,412.49,-0.0624,49.04,0.2,Healthcare,PEAD window closed (10d elapsed),fill
+GE,2026-10-21,2026-11-03,13,294.77,321.12,0.0894,11.39,0.0883,Industrials,PEAD window closed (10d elapsed),fill
+ISRG,2026-10-21,2026-11-03,13,430.78,434.00,0.0075,13.64,0.1018,Healthcare,PEAD window closed (10d elapsed),fill
+NOC,2026-10-21,2026-11-03,13,538.77,550.02,0.0209,9.89,0.0793,Industrials,PEAD window closed (10d elapsed),fill
+RTX,2026-10-21,2026-11-03,13,189.51,202.24,0.0672,26.97,0.1818,Industrials,PEAD window closed (10d elapsed),fill
