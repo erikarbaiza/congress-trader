@@ -1,79 +1,89 @@
 """
 Scans for S&P 500 stocks with a positive EPS surprise in the last N days.
-Uses Alpaca news to identify candidates quickly, then yfinance to verify the beat.
+Checks the full S&P 500 on every run (Wikipedia list, saved snapshot as fallback) with yfinance.
+
+yfinance returns empty data without raising when it is rate-limited, so an empty result is retried and, if it
+persists, reported as a failed download instead of being treated as "no earnings".
 """
 
+import io
+import json
 import time
-import requests
-from datetime import datetime, timedelta, timezone
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta
+from pathlib import Path
 
 import pandas as pd
+import requests
 import yfinance as yf
 
-from config import ALPACA_KEY, ALPACA_SECRET, MIN_PRICE, MIN_VOLUME, MIN_SURPRISE_PCT, MIN_EPS_ESTIMATE
+from config import MIN_PRICE, MIN_VOLUME, MIN_SURPRISE_PCT, MIN_EPS_ESTIMATE
 
-_SP500_FALLBACK = [
-    "AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA", "JPM", "LLY", "V",
-    "UNH", "XOM", "MA", "AVGO", "HD", "PG", "COST", "JNJ", "WMT", "MRK",
-    "ABBV", "CVX", "BAC", "NFLX", "KO", "PEP", "AMD", "ORCL", "CRM", "TMO",
-    "ACN", "CSCO", "LIN", "MCD", "ABT", "TXN", "GE", "PM", "ISRG", "NEE",
-    "DHR", "RTX", "AMGN", "INTU", "SPGI", "PFE", "HON", "CAT", "GS", "IBM",
-    "QCOM", "LOW", "AMAT", "BKNG", "SBUX", "AXP", "T", "BLK", "MDT", "DE",
-    "SYK", "GILD", "ADI", "VRTX", "PLD", "CB", "MMC", "TJX", "MO", "C",
-    "SO", "DUK", "CL", "ZTS", "BSX", "AON", "ICE", "CME", "WM", "HCA",
-    "PNC", "USB", "CI", "ELV", "SHW", "APD", "NSC", "ITW", "MCO", "ETN",
-    "EMR", "GD", "NOC", "LMT", "MMM", "FDX", "UPS", "CSX", "REGN", "BIIB",
-]
+_WIKI_URL = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
+_SNAPSHOT = Path(__file__).parent / "ls_sp500.json"   # last good list, shared with the long/short module
+_FAILED = object()                                    # sentinel: data could not be downloaded
 
 
 def get_sp500_tickers() -> list[str]:
+    """Full S&P 500 from Wikipedia; if that fails, the last saved snapshot. Never a partial list."""
     try:
-        table = pd.read_html(
-            "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies", timeout=10
-        )[0]
-        tickers = table["Symbol"].str.replace(".", "-", regex=False).tolist()
-        print(f"[scanner] S&P 500: {len(tickers)} tickers from Wikipedia")
-        return tickers
-    except Exception:
-        print(f"[scanner] Wikipedia failed — using fallback ({len(_SP500_FALLBACK)} tickers)")
-        return _SP500_FALLBACK
-
-
-def _get_news_candidates(days_back: int) -> list[str]:
-    """Return tickers mentioned in recent earnings-related Alpaca news."""
-    start = (datetime.now(timezone.utc) - timedelta(days=days_back)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    keywords = {"earnings", "eps", "quarterly", "beat", "revenue"}
-    try:
-        resp = requests.get(
-            "https://data.alpaca.markets/v1beta1/news",
-            headers={
-                "APCA-API-KEY-ID": ALPACA_KEY,
-                "APCA-API-SECRET-KEY": ALPACA_SECRET,
-            },
-            params={"start": start, "limit": 50, "include_content": "false"},
-            timeout=15,
-        )
-        resp.raise_for_status()
-        tickers = set()
-        for article in resp.json().get("news", []):
-            if any(kw in article.get("headline", "").lower() for kw in keywords):
-                tickers.update(article.get("symbols", []))
-        print(f"[scanner] {len(tickers)} tickers from earnings news")
-        return list(tickers)
+        html = requests.get(_WIKI_URL, headers={"User-Agent": "Mozilla/5.0"}, timeout=20).text
+        tickers = pd.read_html(io.StringIO(html))[0]["Symbol"].str.replace(".", "-", regex=False).tolist()
+        if len(tickers) > 400:
+            _SNAPSHOT.write_text(json.dumps(sorted(tickers)), encoding="utf-8")
+            print(f"[scanner] S&P 500: {len(tickers)} tickers from Wikipedia")
+            return tickers
     except Exception as e:
-        print(f"[scanner] News API error: {e}")
-        return []
+        print(f"[scanner] Wikipedia failed ({e})")
+    tickers = json.loads(_SNAPSHOT.read_text(encoding="utf-8"))
+    print(f"[scanner] using saved snapshot ({len(tickers)} tickers)")
+    return tickers
 
 
-def _check_beat(sym: str, days_back: int) -> dict | None:
-    """Return beat dict if this ticker had a positive EPS surprise recently, else None."""
+def _market_data(tk: yf.Ticker, attempts: int = 3) -> tuple[float, float, float | None]:
+    """(price, avg volume, market cap); price 0 means the download failed."""
+    for i in range(attempts):
+        try:
+            info   = tk.fast_info
+            price  = getattr(info, "last_price", None) or getattr(info, "regular_market_price", None) or 0
+            volume = getattr(info, "three_month_average_volume", None) or 0
+            if price and volume:
+                return float(price), float(volume), getattr(info, "market_cap", None)
+        except Exception:
+            pass
+        time.sleep(1.5 * (i + 1))
+    return 0.0, 0.0, None
+
+
+def _sector(tk: yf.Ticker) -> str:
+    for _ in range(2):
+        try:
+            sector = (tk.info or {}).get("sector")
+            if sector:
+                return sector
+        except Exception:
+            pass
+        time.sleep(1.5)
+    return "unknown"
+
+
+def _check_beat(sym: str, days_back: int, attempts: int = 3, pause: float = 1.5):
+    """Beat dict if this ticker had a positive EPS surprise recently, None if not, _FAILED if data could not be read."""
     cutoff = datetime.now() - timedelta(days=days_back + 1)
-    try:
-        tk = yf.Ticker(sym)
-        ed = tk.earnings_dates
-        if ed is None or ed.empty:
-            return None
+    tk = yf.Ticker(sym)
+    ed = None
+    for i in range(attempts):
+        try:
+            ed = tk.earnings_dates
+        except Exception:
+            ed = None
+        if ed is not None and not ed.empty:
+            break
+        time.sleep(pause * (i + 1))
+    if ed is None or ed.empty:
+        return _FAILED
 
+    try:
         for date_idx, row in ed.iterrows():
             # Normalize to naive datetime
             try:
@@ -94,12 +104,10 @@ def _check_beat(sym: str, days_back: int) -> dict | None:
                 return None
 
             # Price + volume filter
-            info   = tk.fast_info
-            price  = getattr(info, "last_price", None) or getattr(info, "regular_market_price", None) or 0
-            volume = getattr(info, "three_month_average_volume", None) or 0
-            sector = (tk.info or {}).get("sector", "unknown")
-
-            if float(price) < MIN_PRICE or float(volume) < MIN_VOLUME:
+            price, volume, market_cap = _market_data(tk)
+            if not price:
+                return _FAILED
+            if price < MIN_PRICE or volume < MIN_VOLUME:
                 return None
 
             return {
@@ -107,34 +115,42 @@ def _check_beat(sym: str, days_back: int) -> dict | None:
                 "surprise_pct":  round(surprise_pct, 2),
                 "actual_eps":    round(float(actual), 4),
                 "estimated_eps": round(float(estimate), 4),
-                "price":         round(float(price), 2),
-                "sector":        sector,
-                "market_cap":    getattr(info, "market_cap", None),
+                "price":         round(price, 2),
+                "sector":        _sector(tk),
+                "market_cap":    market_cap,
                 "report_date":   str(naive.date()),
             }
-    except Exception:
-        return None
+    except Exception as e:
+        print(f"[scanner] {sym}: error while evaluating — {e}")
+        return _FAILED
     return None
 
 
 def get_earnings_beats(days_back: int = 2) -> list[dict]:
     """Return stocks that beat EPS in last days_back days, sorted by surprise % desc."""
-    # Start with fast news-based candidates; fall back to full S&P 500
-    candidates = _get_news_candidates(days_back)
-    if len(candidates) < 5:
-        candidates = list(set(candidates) | set(get_sp500_tickers()))
+    tickers = get_sp500_tickers()
+    print(f"[scanner] Checking {len(tickers)} tickers for earnings beats…")
 
-    print(f"[scanner] Checking {len(candidates)} tickers for earnings beats…")
-    beats = []
-    for i, sym in enumerate(candidates):
-        if i > 0 and i % 100 == 0:
-            print(f"[scanner]  … {i}/{len(candidates)} checked, {len(beats)} beats so far")
-            time.sleep(1)
-        result = _check_beat(sym, days_back)
-        if result:
-            beats.append(result)
-            print(f"[scanner]  ✓ {sym:6} +{result['surprise_pct']:.1f}% EPS surprise")
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        results = list(pool.map(lambda s: _check_beat(s, days_back), tickers))
+    beats  = [r for r in results if isinstance(r, dict)]
+    failed = [s for s, r in zip(tickers, results) if r is _FAILED]
+
+    if failed:  # second pass: sequential and more patient
+        print(f"[scanner] {len(failed)} tickers failed on the first pass; retrying")
+        still = []
+        for sym in failed:
+            r = _check_beat(sym, days_back, attempts=4, pause=3.0)
+            if isinstance(r, dict):
+                beats.append(r)
+            elif r is _FAILED:
+                still.append(sym)
+        failed = still
+    if failed:
+        print(f"[scanner] WARNING: no earnings data after retries for {len(failed)} tickers: {failed}")
 
     beats.sort(key=lambda x: x["surprise_pct"], reverse=True)
+    for b in beats:
+        print(f"[scanner]  ✓ {b['ticker']:6} +{b['surprise_pct']:.1f}% EPS surprise")
     print(f"[scanner] {len(beats)} earnings beats found (≥{MIN_SURPRISE_PCT:.0%} surprise)")
     return beats
