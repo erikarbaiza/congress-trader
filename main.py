@@ -1,7 +1,7 @@
 """
-Entry point — runs two strategies each weekday at 15:35 UTC:
+Entry point — runs two strategies each weekday (GitHub Actions, run_bot.yml):
 
-  1. PEAD (Post-Earnings Announcement Drift) — live trading on Alpaca
+  1. PEAD (Post-Earnings Announcement Drift) — paper trading on Alpaca
        a. Exit stale / stopped positions
        b. Scan S&P 500 earnings beats
        c. Buy top beats
@@ -191,4 +191,15 @@ def run() -> None:
 
 
 if __name__ == "__main__":
-    run()
+    try:
+        run()
+    except Exception:
+        import traceback
+        tb = traceback.format_exc()
+        print(tb)
+        try:
+            from emailer import send_crash_alert
+            send_crash_alert(tb)
+        except Exception as alert_err:
+            print(f"[main] could not send the crash alert: {alert_err}")
+        sys.exit(1)

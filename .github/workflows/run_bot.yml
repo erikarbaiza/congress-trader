@@ -9,6 +9,10 @@ on:
 permissions:
   contents: write  # necesario para hacer commit de position_entries.json
 
+concurrency:       # nunca a la vez que el modulo largo/corto: los dos hacen push al mismo repo
+  group: bot-state
+  cancel-in-progress: false
+
 jobs:
   run:
     runs-on: ubuntu-latest
@@ -36,23 +40,20 @@ jobs:
           EMAIL_TO:        ${{ secrets.EMAIL_TO }}
         run: python main.py
 
-      - name: Run largo/corto (paper, cuenta aparte; sin credenciales LS no hace nada)
-        continue-on-error: true
-        env:
-          ALPACA_KEY:       ${{ secrets.ALPACA_KEY }}
-          ALPACA_SECRET:    ${{ secrets.ALPACA_SECRET }}
-          RESEND_API_KEY:   ${{ secrets.RESEND_API_KEY }}
-          EMAIL_TO:         ${{ secrets.EMAIL_TO }}
-          ALPACA_LS_KEY:    ${{ secrets.ALPACA_LS_KEY }}
-          ALPACA_LS_SECRET: ${{ secrets.ALPACA_LS_SECRET }}
-        run: python ls_bot.py
+      # El modulo largo/corto corre aparte, de noche: ver run_ls.yml
 
-      - name: Guardar estado (position_entries, cache, csv)
+      - name: Guardar estado (position_entries, cache, csv; aunque el bot falle)
+        if: always()
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          for f in position_entries.json sectors_cache.json results_earnings.csv results.csv trade_meta.json closed_trades.csv ls_state.json ls_closed.csv ls_equity.csv ls_missed.csv; do
+          for f in position_entries.json sectors_cache.json results_earnings.csv results.csv trade_meta.json closed_trades.csv; do
             [ -f "$f" ] && git add "$f"
           done || true
-          git diff --staged --quiet || git commit -m "bot: actualizar estado [skip ci]"
-          git push
+          git diff --staged --quiet && exit 0
+          git commit -m "bot: actualizar estado [skip ci]"
+          for i in 1 2 3; do
+            git pull --rebase --autostash origin main && git push && exit 0
+            sleep 10
+          done
+          exit 1

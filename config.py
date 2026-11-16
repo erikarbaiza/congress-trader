@@ -28,7 +28,7 @@ MAX_POSITIONS    = int(os.getenv("MAX_POSITIONS", "12"))
 TOP_PERFORMERS   = int(os.getenv("TOP_PERFORMERS", "1"))
 
 # ── Earnings Momentum (PEAD) ──────────────────────────────────────────────────
-HOLD_DAYS        = int(os.getenv("HOLD_DAYS",          "10"))   # calendar days to hold
+HOLD_DAYS        = int(os.getenv("HOLD_DAYS",          "10"))   # calendar days to hold (backtest_pead counts trading days)
 DAYS_BACK_BEATS  = int(os.getenv("DAYS_BACK_BEATS",   "3"))    # lookback for earnings beats; 3 catches Friday post-mkt on Monday
 MIN_SURPRISE_PCT = float(os.getenv("MIN_SURPRISE_PCT", "0.05")) # min EPS beat (5%)
 MIN_EPS_ESTIMATE = float(os.getenv("MIN_EPS_ESTIMATE", "0.10")) # |EPS estimate| floor in $; below it the % surprise is noise
@@ -43,7 +43,7 @@ SCORE_W_TRADES  = float(os.getenv("SCORE_W_TRADES",  "0.10"))
 # backtest_comparison.py showed best_ret (+14.90%) beats composite (-12.57%) over 8 periods
 RANK_BY = os.getenv("RANK_BY", "best_ret")
 
-# ── Risk controls (YOLO MODE 🚀) ──────────────────────────────────────────────
+# ── Risk controls ─────────────────────────────────────────────────────────────
 MAX_POSITION_PCT  = float(os.getenv("MAX_POSITION_PCT",  "0.20"))  # 20% por posición (techo)
 MIN_POSITION_PCT  = float(os.getenv("MIN_POSITION_PCT",  "0.05"))  # 5% para beats mínimos
 SURPRISE_SCALE_PCT = float(os.getenv("SURPRISE_SCALE_PCT", "0.30")) # sorpresa EPS que dispara el techo

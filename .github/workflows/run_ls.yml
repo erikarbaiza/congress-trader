@@ -1,0 +1,65 @@
+name: CongressTrader — Largo/Corto (paper)
+
+on:
+  schedule:
+    # 00:15 UTC de martes a sabado = 19:15 (invierno) / 20:15 (verano) en Nueva York, de lunes a viernes.
+    # Siempre con el mercado cerrado y pasadas las 19:00 ET: las entradas quedan en cola para la apertura siguiente y
+    # las salidas se envian como ordenes al cierre (CLS). El retraso habitual de GitHub (horas) no cambia nada mientras
+    # la ejecucion termine antes de la apertura (14:30 UTC en invierno, 13:30 UTC en verano).
+    - cron: '15 0 * * 2-6'
+  workflow_dispatch:  # permite lanzarlo manualmente desde GitHub
+
+permissions:
+  contents: write  # necesario para hacer commit de los ficheros de estado
+
+concurrency:       # nunca a la vez que el bot PEAD: los dos hacen push al mismo repo
+  group: bot-state
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Prueba offline del modulo (si falla, no se opera)
+        run: python ls_test.py
+
+      - name: Run largo/corto (paper, cuenta aparte; sin credenciales LS no hace nada)
+        env:
+          ALPACA_KEY:       ${{ secrets.ALPACA_KEY }}
+          ALPACA_SECRET:    ${{ secrets.ALPACA_SECRET }}
+          RESEND_API_KEY:   ${{ secrets.RESEND_API_KEY }}
+          EMAIL_TO:         ${{ secrets.EMAIL_TO }}
+          ALPACA_LS_KEY:    ${{ secrets.ALPACA_LS_KEY }}
+          ALPACA_LS_SECRET: ${{ secrets.ALPACA_LS_SECRET }}
+        run: python ls_bot.py
+
+      - name: Guardar estado (aunque el paso anterior falle)
+        if: always()
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          for f in ls_state.json ls_closed.csv ls_equity.csv ls_missed.csv; do
+            [ -f "$f" ] && git add "$f"
+          done || true
+          git diff --staged --quiet && exit 0
+          git commit -m "ls: actualizar estado [skip ci]"
+          for i in 1 2 3; do
+            git pull --rebase --autostash origin main && git push && exit 0
+            sleep 10
+          done
+          exit 1

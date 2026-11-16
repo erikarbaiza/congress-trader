@@ -3,7 +3,7 @@ Senales del modulo largo/corto: anuncios de resultados del S&P 500 -> candidatos
 
 Replica la logica del backtest (backtest_pead/events.py y ls_sim.py):
   - dia de reaccion R: anuncio antes de apertura (hora < 12) -> ese mismo dia habil; despues de cierre -> siguiente dia habil
-  - dia de entrada: R + 1 dia habil (apertura en el backtest; aqui, la hora a la que corra el bot ese dia)
+  - dia de entrada: R + 1 dia habil, en la apertura (el bot corre la noche anterior y deja la orden en cola)
   - sorpresa % = (real - estimado) / |estimado|;  sorpresa/precio = (real - estimado) / cierre previo a R * 100
   - LARGO: sorpresa/precio >= P80 y sorpresa % > 0;  CORTO: sorpresa/precio <= P20 y sorpresa % < 0
 Los percentiles (4 anios previos) estan en ls_thresholds.json y se refrescan con backtest_pead/make_thresholds.py.
@@ -98,8 +98,22 @@ def _prev_close(t: str, r_day: date) -> float | None:
     return None
 
 
+def official_price(t: str, day: date, field: str) -> float | None:
+    """Apertura ('Open') o cierre ('Close') oficial de un dia ya terminado; None si no se pudo obtener."""
+    for attempt in range(3):
+        try:
+            h = yf.Ticker(t).history(start=day, end=day + timedelta(days=1), auto_adjust=False)
+            if len(h) and h.index[0].date() == day:
+                return float(h[field].iloc[0])
+        except Exception:
+            pass
+        time.sleep(1.5 * (attempt + 1))
+    return None
+
+
 def find_candidates(asof: date, tickers: list[str] | None = None) -> list[dict]:
-    """Candidatos largos (side=+1) y cortos (side=-1) cuyo dia de entrada es hoy o ayer (margen LS_MAX_ENTRY_LAG).
+    """Candidatos largos (side=+1) y cortos (side=-1) cuyo dia de entrada es la sesion `asof` o la anterior
+    (margen LS_MAX_ENTRY_LAG).
     Los que no se pueden evaluar (sin precio previo) se devuelven con side=0 y un motivo."""
     thr = load_thresholds()
     days = trading_calendar(asof - timedelta(days=40), asof + timedelta(days=40))
