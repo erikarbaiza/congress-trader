@@ -126,6 +126,36 @@ def _check_beat(sym: str, days_back: int, attempts: int = 3, pause: float = 1.5)
     return None
 
 
+def retry_failed(failed: list[str], days_back: int, check=None, sleep=time.sleep, now=time.monotonic,
+                 rounds: int = 3, cooldown: float = 60.0, budget: float = 420.0) -> tuple[list[dict], list[str]]:
+    """Retry tickers whose download failed. yfinance throttles by request volume, and a throttle that has started
+    does not clear in a few seconds, so each round first lets it cool down (60 s, 120 s, 180 s), then goes one
+    ticker at a time with a pause between requests. `budget` caps the total time so a persistent block cannot
+    stall the run. Returns (beats found, tickers still failing)."""
+    check = check or _check_beat
+    beats: list[dict] = []
+    start = now()
+    for rnd in range(1, rounds + 1):
+        if not failed or now() - start >= budget:
+            break
+        print(f"[scanner] retry round {rnd}/{rounds}: {len(failed)} tickers, cooling down {cooldown * rnd:.0f}s first")
+        sleep(cooldown * rnd)
+        still = []
+        for i, sym in enumerate(failed):
+            if now() - start >= budget:
+                still.extend(failed[i:])
+                print(f"[scanner] retry budget of {budget:.0f}s used up")
+                break
+            r = check(sym, days_back, attempts=2, pause=2.0)
+            sleep(0.7)                                   # spread requests out instead of bursting
+            if isinstance(r, dict):
+                beats.append(r)
+            elif r is _FAILED:
+                still.append(sym)
+        failed = still
+    return beats, failed
+
+
 def get_earnings_beats(days_back: int = 2) -> list[dict]:
     """Return stocks that beat EPS in last days_back days, sorted by surprise % desc."""
     tickers = get_sp500_tickers()
@@ -136,18 +166,13 @@ def get_earnings_beats(days_back: int = 2) -> list[dict]:
     beats  = [r for r in results if isinstance(r, dict)]
     failed = [s for s, r in zip(tickers, results) if r is _FAILED]
 
-    if failed:  # second pass: sequential and more patient
-        print(f"[scanner] {len(failed)} tickers failed on the first pass; retrying")
-        still = []
-        for sym in failed:
-            r = _check_beat(sym, days_back, attempts=4, pause=3.0)
-            if isinstance(r, dict):
-                beats.append(r)
-            elif r is _FAILED:
-                still.append(sym)
-        failed = still
+    if failed:
+        print(f"[scanner] {len(failed)} tickers failed on the first pass; retrying after a cool-down")
+        more, failed = retry_failed(failed, days_back)
+        beats += more
     if failed:
         print(f"[scanner] WARNING: no earnings data after retries for {len(failed)} tickers: {failed}")
+        print(f"::warning::scanner could not read earnings for {len(failed)} tickers")
 
     beats.sort(key=lambda x: x["surprise_pct"], reverse=True)
     for b in beats:

@@ -128,11 +128,15 @@ def find_candidates(asof: date, tickers: list[str] | None = None) -> list[dict]:
         first = list(pool.map(lambda t: _events_for(t, since), tickers))
     events = [e for lst, _ in first for e in lst]
     failed = [t for t, (_, ok) in zip(tickers, first) if not ok]
-    if failed:                                    # segunda pasada, secuencial y con mas paciencia
-        print(f"[ls] sin datos de resultados en la 1a pasada: {len(failed)} tickers; reintento secuencial")
+    for rnd in (1, 2):                            # reintentos: enfriar, y luego uno a uno con pausa entre peticiones
+        if not failed:
+            break
+        print(f"[ls] sin datos de resultados: {len(failed)} tickers; ronda de reintento {rnd}/2 tras {60 * rnd} s de espera")
+        time.sleep(60 * rnd)
         still = []
         for t in failed:
-            lst, ok = _events_for(t, since, attempts=4, pause=3.0)
+            lst, ok = _events_for(t, since, attempts=2, pause=2.0)
+            time.sleep(0.7)
             events += lst
             if not ok:
                 still.append(t)
