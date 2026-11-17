@@ -9,7 +9,6 @@ persists, reported as a failed download instead of being treated as "no earnings
 import io
 import json
 import time
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -18,6 +17,7 @@ import requests
 import yfinance as yf
 
 from config import MIN_PRICE, MIN_VOLUME, MIN_SURPRISE_PCT, MIN_EPS_ESTIMATE
+from fetch_utils import run_in_batches
 
 _WIKI_URL = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
 _SNAPSHOT = Path(__file__).parent / "ls_sp500.json"   # last good list, shared with the long/short module
@@ -161,10 +161,9 @@ def get_earnings_beats(days_back: int = 2) -> list[dict]:
     tickers = get_sp500_tickers()
     print(f"[scanner] Checking {len(tickers)} tickers for earnings beats…")
 
-    with ThreadPoolExecutor(max_workers=3) as pool:
-        results = list(pool.map(lambda s: _check_beat(s, days_back), tickers))
-    beats  = [r for r in results if isinstance(r, dict)]
-    failed = [s for s, r in zip(tickers, results) if r is _FAILED]
+    pairs  = run_in_batches(tickers, lambda s: _check_beat(s, days_back))
+    beats  = [r for _, r in pairs if isinstance(r, dict)]
+    failed = [s for s, r in pairs if r is _FAILED]
 
     if failed:
         print(f"[scanner] {len(failed)} tickers failed on the first pass; retrying after a cool-down")

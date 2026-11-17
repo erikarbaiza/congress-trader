@@ -20,6 +20,7 @@ import requests
 import yfinance as yf
 from alpaca.trading.requests import GetCalendarRequest
 
+from fetch_utils import run_in_batches
 from ls_config import LS_LOOKBACK_DAYS, LS_MAX_ENTRY_LAG
 from trader import _get_trading_client
 
@@ -124,10 +125,9 @@ def find_candidates(asof: date, tickers: list[str] | None = None) -> list[dict]:
     tickers = tickers or sp500_tickers()
     since = asof - timedelta(days=LS_LOOKBACK_DAYS)
 
-    with ThreadPoolExecutor(max_workers=3) as pool:
-        first = list(pool.map(lambda t: _events_for(t, since), tickers))
-    events = [e for lst, _ in first for e in lst]
-    failed = [t for t, (_, ok) in zip(tickers, first) if not ok]
+    first = run_in_batches(tickers, lambda t: _events_for(t, since))     # orden aleatorio y en dos tandas con pausa
+    events = [e for _, (lst, _ok) in first for e in lst]
+    failed = [t for t, (_, ok) in first if not ok]
     for rnd in (1, 2):                            # reintentos: enfriar, y luego uno a uno con pausa entre peticiones
         if not failed:
             break

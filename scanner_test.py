@@ -59,6 +59,22 @@ def main() -> None:
     clk = Clock()
     assert sc.retry_failed([], 3, check=always, sleep=clk.sleep, now=clk.now) == ([], []) and clk.now() == 0
     print("OK nothing failed: no waiting")
+
+    # 5. batches: every ticker processed exactly once, shuffled differently per run, one long pause between batches
+    import random
+    from fetch_utils import run_in_batches
+    names = [f"T{i}" for i in range(503)]
+    pauses = []
+    out1 = run_in_batches(names, lambda s: s.lower(), sleep=pauses.append, rng=random.Random(1))
+    out2 = run_in_batches(names, lambda s: s.lower(), sleep=lambda s: None, rng=random.Random(2))
+    assert sorted(t for t, _ in out1) == sorted(names) and all(r == t.lower() for t, r in out1)
+    assert pauses == [90.0], pauses
+    assert [t for t, _ in out1] != names and [t for t, _ in out1] != [t for t, _ in out2]
+    print(f"OK batches: 503 tickers once each, shuffled differently per run, {len(pauses)} pause of {pauses[0]:.0f}s between 2 batches")
+    assert run_in_batches([], lambda s: s, sleep=pauses.append) == []
+    one = run_in_batches(["A"], lambda s: s, sleep=pauses.append)
+    assert one == [("A", "A")] and pauses == [90.0]
+    print("OK batches: empty list and single ticker need no pause")
     print("TODO OK")
 
 
