@@ -4,5 +4,23 @@
     "position_pct": 0.052,
     "sector": "Communication Services",
     "surprise_pct": 5.36
+  },
+  "LOW": {
+    "entry_date": "2026-11-18T22:43:38.420416+00:00",
+    "position_pct": 0.0644,
+    "sector": "Consumer Cyclical",
+    "surprise_pct": 7.64
+  },
+  "NVDA": {
+    "entry_date": "2026-11-18T22:43:38.282228+00:00",
+    "position_pct": 0.0699,
+    "sector": "Technology",
+    "surprise_pct": 8.5
+  },
+  "TGT": {
+    "entry_date": "2026-11-18T22:43:38.144650+00:00",
+    "position_pct": 0.184,
+    "sector": "Consumer Defensive",
+    "surprise_pct": 27.4
   }
 }
