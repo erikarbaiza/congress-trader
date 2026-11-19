@@ -17,10 +17,28 @@
     "sector": "Technology",
     "surprise_pct": 8.5
   },
+  "P": {
+    "entry_date": "2026-11-19T22:47:35.602895+00:00",
+    "position_pct": 0.0808,
+    "sector": "Technology",
+    "surprise_pct": 10.26
+  },
+  "PANW": {
+    "entry_date": "2026-11-19T22:47:35.660117+00:00",
+    "position_pct": 0.0667,
+    "sector": "Technology",
+    "surprise_pct": 8.25
+  },
   "TGT": {
     "entry_date": "2026-11-18T22:43:38.144650+00:00",
     "position_pct": 0.184,
     "sector": "Consumer Defensive",
     "surprise_pct": 27.4
+  },
+  "WSM": {
+    "entry_date": "2026-11-19T22:47:35.717022+00:00",
+    "position_pct": 0.0642,
+    "sector": "Consumer Cyclical",
+    "surprise_pct": 7.69
   }
 }
