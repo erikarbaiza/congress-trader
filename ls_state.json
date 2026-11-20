@@ -2,6 +2,9 @@
   "positions": {
     "TGT": {
       "entry_date": "2026-11-19",
+      "entry_fill": 166.615,
+      "entry_open": 166.97,
+      "entry_slip_bp": -21.3,
       "event_date": "2026-11-18",
       "exit_date": "2026-12-18",
       "order_id": "ce34c6ad-ffbe-4863-a2b4-c6625f4ee96c",
