@@ -5,6 +5,12 @@
     "sector": "Healthcare",
     "surprise_pct": 7.51
   },
+  "BBY": {
+    "entry_date": "2026-11-25T00:06:21.498545+00:00",
+    "position_pct": 0.0719,
+    "sector": "Consumer Cyclical",
+    "surprise_pct": 8.72
+  },
   "DIS": {
     "entry_date": "2026-11-17T23:08:50.236156+00:00",
     "position_pct": 0.052,
