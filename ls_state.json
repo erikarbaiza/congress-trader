@@ -1,5 +1,27 @@
 {
   "positions": {
+    "HPE": {
+      "entry_date": "2026-11-25",
+      "event_date": "2026-11-23",
+      "exit_date": "2026-12-24",
+      "order_id": "e33c46f4-0910-4868-afe8-74660140b794",
+      "planned_entry": "2026-11-25",
+      "qty": 124,
+      "side": 1,
+      "surprise_pct": 10.85,
+      "surprise_px": 0.2915
+    },
+    "SJM": {
+      "entry_date": "2026-11-25",
+      "event_date": "2026-11-24",
+      "exit_date": "2026-12-24",
+      "order_id": "2ed2ac42-0941-42b9-8552-586db346f5a0",
+      "planned_entry": "2026-11-25",
+      "qty": 38,
+      "side": 1,
+      "surprise_pct": 25.0,
+      "surprise_px": 0.482
+    },
     "TGT": {
       "entry_date": "2026-11-19",
       "entry_fill": 166.615,
@@ -16,6 +38,8 @@
     }
   },
   "seen": [
-    "TGT|2026-11-18"
+    "TGT|2026-11-18",
+    "SJM|2026-11-24",
+    "HPE|2026-11-23"
   ]
 }
