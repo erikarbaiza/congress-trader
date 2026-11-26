@@ -1,7 +1,32 @@
 {
   "positions": {
+    "DE": {
+      "entry_date": "2026-11-27",
+      "event_date": "2026-11-25",
+      "exit_date": "2026-12-28",
+      "order_id": "3741c79c-0417-415d-848c-680de3ce88b4",
+      "planned_entry": "2026-11-27",
+      "qty": 7,
+      "side": -1,
+      "surprise_pct": -3.95,
+      "surprise_px": -0.0261
+    },
+    "DELL": {
+      "entry_date": "2026-11-27",
+      "event_date": "2026-11-24",
+      "exit_date": "2026-12-28",
+      "order_id": "3e03cd1f-8216-4992-adce-a891362e6eec",
+      "planned_entry": "2026-11-27",
+      "qty": 16,
+      "side": 1,
+      "surprise_pct": 43.4,
+      "surprise_px": 0.9686
+    },
     "HPE": {
       "entry_date": "2026-11-25",
+      "entry_fill": 39.0329,
+      "entry_open": 37.49,
+      "entry_slip_bp": 411.5,
       "event_date": "2026-11-23",
       "exit_date": "2026-12-24",
       "order_id": "e33c46f4-0910-4868-afe8-74660140b794",
@@ -11,8 +36,22 @@
       "surprise_pct": 10.85,
       "surprise_px": 0.2915
     },
+    "HPQ": {
+      "entry_date": "2026-11-27",
+      "event_date": "2026-11-24",
+      "exit_date": "2026-12-28",
+      "order_id": "1144339f-0e9d-459d-b7c9-fd4c46655b09",
+      "planned_entry": "2026-11-27",
+      "qty": 161,
+      "side": 1,
+      "surprise_pct": 12.16,
+      "surprise_px": 0.3221
+    },
     "SJM": {
       "entry_date": "2026-11-25",
+      "entry_fill": 129.6258,
+      "entry_open": 129.88,
+      "entry_slip_bp": -19.6,
       "event_date": "2026-11-24",
       "exit_date": "2026-12-24",
       "order_id": "2ed2ac42-0941-42b9-8552-586db346f5a0",
@@ -40,6 +79,9 @@
   "seen": [
     "TGT|2026-11-18",
     "SJM|2026-11-24",
-    "HPE|2026-11-23"
+    "HPE|2026-11-23",
+    "DELL|2026-11-24",
+    "HPQ|2026-11-24",
+    "DE|2026-11-25"
   ]
 }
