@@ -2,6 +2,9 @@
   "positions": {
     "DE": {
       "entry_date": "2026-11-27",
+      "entry_fill": 645.26,
+      "entry_open": 650.35,
+      "entry_slip_bp": 78.3,
       "event_date": "2026-11-25",
       "exit_date": "2026-12-28",
       "order_id": "3741c79c-0417-415d-848c-680de3ce88b4",
@@ -13,6 +16,9 @@
     },
     "DELL": {
       "entry_date": "2026-11-27",
+      "entry_fill": 306.84,
+      "entry_open": 307.03,
+      "entry_slip_bp": -6.2,
       "event_date": "2026-11-24",
       "exit_date": "2026-12-28",
       "order_id": "3e03cd1f-8216-4992-adce-a891362e6eec",
@@ -38,6 +44,9 @@
     },
     "HPQ": {
       "entry_date": "2026-11-27",
+      "entry_fill": 31.1259,
+      "entry_open": 31.05,
+      "entry_slip_bp": 24.4,
       "event_date": "2026-11-24",
       "exit_date": "2026-12-28",
       "order_id": "1144339f-0e9d-459d-b7c9-fd4c46655b09",
